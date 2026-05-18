@@ -7,6 +7,7 @@ struct Light
 {
     glm::vec3 position;
     glm::vec4 color;
+    float intensity;
     bool enabled;
 };
 

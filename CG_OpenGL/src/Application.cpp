@@ -2,14 +2,19 @@
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+#include <glm.hpp>
 
 #include "camera/Camera.h"
 #include "input/Input.h"
 #include "scene/Scene.h"
+#include "scene/SceneConfig.h"
 #include "rendering/Shader.h"
 
-constexpr unsigned int WINDOW_WIDTH = 800;
-constexpr unsigned int WINDOW_HEIGHT = 800;
+constexpr unsigned int WINDOW_WIDTH = 960;
+constexpr unsigned int WINDOW_HEIGHT = 540;
 
 GLFWwindow* CreateWindow()
 {
@@ -23,7 +28,13 @@ GLFWwindow* CreateWindow()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "CG OpenGL", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(
+        WINDOW_WIDTH,
+        WINDOW_HEIGHT,
+        "Cornell Box Raytracing",
+        nullptr,
+        nullptr
+    );
 
     if (!window)
     {
@@ -43,6 +54,7 @@ GLFWwindow* CreateWindow()
     }
 
     glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+
     return window;
 }
 
@@ -56,17 +68,21 @@ int main()
     glEnable(GL_DEPTH_TEST);
 
     Shader shaderProgram("default.vert", "default.frag");
+    Shader debugShader("debug.vert", "debug.frag");
 
     Camera camera(
         WINDOW_WIDTH,
         WINDOW_HEIGHT,
-        glm::vec3(0.0f, 0.0f, 3.0f)
+        SceneConfig::CAMERA_PRESETS[0].position
     );
 
     Input input;
 
     Scene scene;
-    scene.Initialize("models/bunny.obj");
+    scene.Initialize("models/CornellBox.obj");
+
+    const float aspectRatio =
+        static_cast<float>(WINDOW_WIDTH) / static_cast<float>(WINDOW_HEIGHT);
 
     float lastTime = static_cast<float>(glfwGetTime());
 
@@ -78,18 +94,24 @@ int main()
 
         input.Update(window);
 
-        if (input.IsKeyPressed(GLFW_KEY_ESCAPE))
+        if (input.ShouldClose())
             glfwSetWindowShouldClose(window, true);
 
-        camera.Inputs(window, deltaTime);
-        camera.updateMatrix(45.0f, 0.1f, 100.0f);
-
         scene.Update(input);
+
+        camera.Inputs(window, deltaTime);
+
+        camera.updateMatrix(
+            SceneConfig::CAMERA_FOV,
+            SceneConfig::CAMERA_NEAR,
+            SceneConfig::CAMERA_FAR
+        );
 
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         scene.Render(shaderProgram, camera);
+        scene.RenderDebug(debugShader, camera, aspectRatio);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -97,6 +119,9 @@ int main()
         input.EndFrame();
     }
 
+    scene.Shutdown();
+
+    debugShader.Delete();
     shaderProgram.Delete();
 
     glfwDestroyWindow(window);

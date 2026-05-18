@@ -54,6 +54,9 @@
     <ClCompile Include="src\loaders\objModel.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\debug\Helpers.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\rendering\Shader.h">
@@ -92,6 +95,12 @@
     <ClInclude Include="src\loaders\objModel.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\debug\Helpers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\scene\SceneConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="default.frag">
@@ -107,5 +116,8 @@
     <None Include="models\Cube.obj" />
     <None Include="models\dragon.obj" />
     <None Include="models\sphere.obj" />
+    <None Include="models\CornellBox.obj" />
+    <None Include="debug.vert" />
+    <None Include="debug.frag" />
   </ItemGroup>
 </Project>

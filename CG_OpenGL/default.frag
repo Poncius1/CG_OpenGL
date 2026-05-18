@@ -19,12 +19,13 @@ struct Light
 {
     vec3 position;
     vec4 color;
+    float intensity;
     bool enabled;
 };
 
 uniform Material material;
-uniform Light whiteLight;
-uniform Light blueLight;
+uniform Light mainLight;
+uniform Light fillLight;
 uniform vec3 camPos;
 
 float hash(vec3 p)
@@ -81,51 +82,56 @@ vec4 CalculateLight(Light light, vec3 baseColor, vec3 specColor, float shininess
         return vec4(0.0);
 
     vec3 normal = normalize(Normal);
-    vec3 lightDir = normalize(light.position - crntPos);
     vec3 viewDir = normalize(camPos - crntPos);
+
+    // Two-sided lighting:
+    // si la normal apunta en sentido opuesto a la cámara,
+    // la invertimos para que las caras internas del box se iluminen mejor.
+    if (dot(normal, viewDir) < 0.0)
+    {
+        normal = -normal;
+    }
+
+    vec3 lightVector = light.position - crntPos;
+    vec3 lightDir = normalize(lightVector);
     vec3 reflectDir = reflect(-lightDir, normal);
 
-    float distance = length(light.position - crntPos);
-    float attenuation = 1.0 / (1.0 + 0.04 * distance + 0.012 * distance * distance);
+    float distanceToLight = length(lightVector);
+    float attenuation = 1.0 /
+    (
+        1.0 +
+        0.25 * distanceToLight +
+        0.25 * distanceToLight * distanceToLight
+    );
 
     float diff = max(dot(normal, lightDir), 0.0);
-
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
 
-    vec3 ambient = baseColor * 0.12 * light.color.rgb;
-    vec3 diffuse = baseColor * diff * light.color.rgb;
-    vec3 specular = specColor * spec * light.color.rgb * 1.8;
+    vec3 radiance = light.color.rgb * light.intensity * attenuation;
 
-    return vec4((ambient + diffuse + specular) * attenuation, 1.0);
+    vec3 diffuse = baseColor * diff * radiance;
+    vec3 specular = specColor * spec * radiance * 0.35;
+
+    return vec4(diffuse + specular, 1.0);
 }
 
 vec3 MarbleMaterial()
 {
-    // Escala más grande = vetas más elegantes
     vec3 p = crntPos * 1.5;
 
-    // Ruido base
     float n = fbm(p * 2.0);
-
-    // Dirección de vetas (esto es clave)
     float veins = sin(p.x * 6.0 + n * 3.0);
-
-    // Suavizar vetas
     veins = smoothstep(-0.3, 0.8, veins);
 
-    // Colores mármol más realistas
-    vec3 base = vec3(0.85, 0.84, 0.82);      // blanco roto
-    vec3 light = vec3(0.95, 0.94, 0.90);     // zonas claras
-    vec3 dark = vec3(0.35, 0.33, 0.30);      // vetas suaves
+    vec3 base = vec3(0.58, 0.58, 0.62);
+    vec3 light = vec3(0.76, 0.76, 0.80);
+    vec3 dark = vec3(0.30, 0.30, 0.34);
 
-    // Mezcla principal
-    vec3 marble = mix(base, light, n * 0.4);
+    vec3 marble = mix(base, light, n * 0.30);
+    marble = mix(marble, dark, veins * 0.25);
 
-    // Aplicar vetas (menos agresivas)
-    marble = mix(marble, dark, veins * 0.35);
+    marble *= vec3(0.96, 0.98, 1.0);
 
-    // ligero tono cálido tipo mármol italiano
-    marble *= vec3(1.0, 0.98, 0.95);
     return marble;
 }
 
@@ -137,13 +143,13 @@ vec3 DarkBlueMetalMaterial()
     float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 3.0);
 
     vec3 deepBlue = vec3(0.01, 0.03, 0.12);
-    vec3 electricBlue = vec3(0.0, 0.25, 1.0);
-    vec3 edgeGlow = vec3(0.2, 0.65, 1.0);
+    vec3 electricBlue = vec3(0.0, 0.20, 0.85);
+    vec3 edgeGlow = vec3(0.2, 0.55, 1.0);
 
     float pattern = fbm(crntPos * 8.0);
 
-    vec3 metal = mix(deepBlue, electricBlue, pattern * 0.35);
-    metal += edgeGlow * fresnel * 0.8;
+    vec3 metal = mix(deepBlue, electricBlue, pattern * 0.25);
+    metal += edgeGlow * fresnel * 0.35;
 
     return metal;
 }
@@ -157,19 +163,23 @@ void main()
     if (material.shininess < 60.0)
     {
         baseColor = MarbleMaterial();
-        specColor = vec3(0.8, 0.8, 0.8);
-        shininess = 128.0;
+        specColor = vec3(0.18, 0.18, 0.20);
+        shininess = 32.0;
     }
     else
     {
         baseColor = DarkBlueMetalMaterial();
-        specColor = vec3(0.45, 0.75, 1.0);
-        shininess = 160.0;
+        specColor = vec3(0.30, 0.45, 0.80);
+        shininess = 64.0;
     }
 
-    vec4 lighting =
-        CalculateLight(whiteLight, baseColor, specColor, shininess) +
-        CalculateLight(blueLight, baseColor, specColor, shininess);
+    vec3 globalAmbient = baseColor * 0.06;
 
-    FragColor = vec4(lighting.rgb, 1.0);
+    vec4 lighting =
+        CalculateLight(mainLight, baseColor, specColor, shininess) +
+        CalculateLight(fillLight, baseColor, specColor, shininess);
+
+    vec3 finalColor = globalAmbient + lighting.rgb;
+
+    FragColor = vec4(clamp(finalColor, 0.0, 1.0), 1.0);
 }
