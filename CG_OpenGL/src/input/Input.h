@@ -19,8 +19,10 @@ public:
 
     bool ToggleDebugHelpersPressed() const;
     bool ToggleMainLightPressed() const;
-    bool ToggleMetalShaderPressed() const;
-    bool ToggleGlassShaderPressed() const;
+
+    bool ToggleMaterialPressed() const;
+    bool ToggleTextureMappingPressed() const;
+    bool ToggleLightingModelPressed() const;
 
     bool CameraPreset1Pressed() const;
     bool CameraPreset2Pressed() const;

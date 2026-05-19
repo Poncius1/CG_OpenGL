@@ -22,6 +22,7 @@ void Input::RegisterTrackedKeys()
         GLFW_KEY_T,
         GLFW_KEY_L,
         GLFW_KEY_H,
+        GLFW_KEY_B,
 
         GLFW_KEY_1,
         GLFW_KEY_2,
@@ -105,16 +106,6 @@ bool Input::ToggleMainLightPressed() const
     return IsKeyPressed(GLFW_KEY_L);
 }
 
-bool Input::ToggleMetalShaderPressed() const
-{
-    return IsKeyPressed(GLFW_KEY_M);
-}
-
-bool Input::ToggleGlassShaderPressed() const
-{
-    return IsKeyPressed(GLFW_KEY_T);
-}
-
 bool Input::CameraPreset1Pressed() const
 {
     return IsKeyPressed(GLFW_KEY_1);
@@ -128,4 +119,19 @@ bool Input::CameraPreset2Pressed() const
 bool Input::CameraPreset3Pressed() const
 {
     return IsKeyPressed(GLFW_KEY_3);
+}
+
+bool Input::ToggleMaterialPressed() const
+{
+    return IsKeyPressed(GLFW_KEY_M);
+}
+
+bool Input::ToggleTextureMappingPressed() const
+{
+    return IsKeyPressed(GLFW_KEY_T);
+}
+
+bool Input::ToggleLightingModelPressed() const
+{
+    return IsKeyPressed(GLFW_KEY_B);
 }

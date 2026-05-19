@@ -34,47 +34,42 @@ namespace SceneConfig
     {
         "mainLight",
 
-        // Luz principal en el techo, dentro de la caja.
-        glm::vec3(0.0f, 0.70f, -0.10f),
+        // Luz blanca siempre encendida.
+        glm::vec3(0.0f, 1.0f, 1.8f),
 
-        
-        glm::vec4(0.78f, 0.84f, 1.00f, 1.0f),
+        glm::vec4(1.0f, 1.0f, 1.0f, 1.0f),
 
+        // Intensidad requerida.
         1.0f,
 
-        // Encendida al iniciar.
         true,
 
-        // Se puede apagar/encender.
-        true,
+        // No se apaga.
+        false,
 
-        // Helper.
         0.12f,
-        glm::vec3(0.70f, 0.85f, 1.0f)
+        glm::vec3(1.0f, 1.0f, 1.0f)
     };
 
     inline const SceneLight FILL_LIGHT =
     {
         "fillLight",
 
-        // Luz tenue fuera de la caja.
-        glm::vec3(0.0f, 0.45f, 2.0f),
+        // Luz azul secundaria.
+        glm::vec3(-1.4f, 0.7f, 1.2f),
 
-        
-        glm::vec4(0.35f, 0.45f, 1.00f, 1.0f),
+        glm::vec4(0.25f, 0.45f, 1.0f, 1.0f),
 
-        // Muy tenue, siempre encendida.
-        0.10f,
+        // Intensidad requerida.
+        1.0f,
 
-        // Encendida.
         true,
 
-        // No se apaga.
-        false,
+        // Esta sí se puede apagar/encender.
+        true,
 
-        // Helper.
         0.10f,
-        glm::vec3(0.30f, 0.45f, 0.80f)
+        glm::vec3(0.30f, 0.45f, 1.0f)
     };
 
     inline const std::array<SceneLight, 2> LIGHTS =
@@ -101,8 +96,8 @@ namespace SceneConfig
             0,
 
             // Cámara frontal.
-            glm::vec3(0.0f, 0.32f, 3.20f),
-            glm::vec3(0.0f, 0.12f, 0.0f),
+            glm::vec3(0.0f, 0.35f, 3.20f),
+            glm::vec3(0.0f, 0.15f, 0.0f),
 
             WORLD_UP,
             glm::vec3(1.0f, 1.0f, 0.0f)
@@ -112,9 +107,9 @@ namespace SceneConfig
         {
             1,
 
-            // Cámara diagonal derecha.
-            glm::vec3(1.80f, 0.38f, 2.70f),
-            glm::vec3(0.0f, 0.12f, 0.0f),
+            // Cámara trasera.
+            glm::vec3(0.0f, 0.35f, -3.20f),
+            glm::vec3(0.0f, 0.15f, 0.0f),
 
             WORLD_UP,
             glm::vec3(1.0f, 0.5f, 0.0f)
@@ -124,9 +119,9 @@ namespace SceneConfig
         {
             2,
 
-            // Cámara diagonal izquierda.
-            glm::vec3(-1.80f, 0.38f, 2.70f),
-            glm::vec3(0.0f, 0.12f, 0.0f),
+            // Cámara 3/4
+            glm::vec3(2.20f, 0.65f, 2.80f),
+            glm::vec3(0.0f, 0.20f, 0.0f),
 
             WORLD_UP,
             glm::vec3(0.0f, 1.0f, 1.0f)

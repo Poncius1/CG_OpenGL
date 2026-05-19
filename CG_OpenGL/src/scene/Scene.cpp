@@ -1,5 +1,9 @@
 #include "Scene.h"
+
+#include <string>
+
 #include "scene/SceneConfig.h"
+
 
 void Scene::Initialize(const std::string& modelPath)
 {
@@ -7,54 +11,38 @@ void Scene::Initialize(const std::string& modelPath)
 
     debugHelpers.Initialize();
 
-    whiteWallMaterial =
-    {
-        glm::vec4(0.08f, 0.08f, 0.08f, 1.0f),
-        glm::vec4(0.80f, 0.78f, 0.70f, 1.0f),
-        glm::vec4(0.10f, 0.10f, 0.10f, 1.0f),
-        16.0f
-    };
+    
+    // Materiales requeridos
 
-    redWallMaterial =
+    // Material A:
+    // Ambiente {0.0, 0.0, 0.0, 1.0}
+    // Difusa   {0.50, 0.50, 0.50, 1.0}
+    // Especular{0.70, 0.70, 0.70, 1.0}
+    // Shininess 32.0
+    materialA =
     {
-        glm::vec4(0.08f, 0.01f, 0.01f, 1.0f),
-        glm::vec4(0.65f, 0.05f, 0.04f, 1.0f),
-        glm::vec4(0.05f, 0.02f, 0.02f, 1.0f),
-        8.0f
-    };
-
-    greenWallMaterial =
-    {
-        glm::vec4(0.01f, 0.08f, 0.01f, 1.0f),
-        glm::vec4(0.08f, 0.45f, 0.10f, 1.0f),
-        glm::vec4(0.02f, 0.05f, 0.02f, 1.0f),
-        8.0f
-    };
-
-    metalSphereMaterial =
-    {
-        glm::vec4(0.04f, 0.04f, 0.04f, 1.0f),
-        glm::vec4(0.75f, 0.72f, 0.65f, 1.0f),
-        glm::vec4(1.00f, 0.95f, 0.85f, 1.0f),
-        128.0f
-    };
-
-    glassSphereMaterial =
-    {
-        glm::vec4(0.02f, 0.03f, 0.04f, 1.0f),
-        glm::vec4(0.45f, 0.70f, 0.90f, 0.35f),
-        glm::vec4(0.90f, 0.95f, 1.00f, 1.0f),
-        96.0f
-    };
-
-    objMaterial =
-    {
-        glm::vec4(0.04f, 0.04f, 0.04f, 1.0f),
-        glm::vec4(0.70f, 0.66f, 0.58f, 1.0f),
-        glm::vec4(0.30f, 0.30f, 0.30f, 1.0f),
+        glm::vec4(0.0f, 0.0f, 0.0f, 1.0f),
+        glm::vec4(0.50f, 0.50f, 0.50f, 1.0f),
+        glm::vec4(0.70f, 0.70f, 0.70f, 1.0f),
         32.0f
     };
 
+    // Material B:
+    // Ambiente {0.23125, 0.23125, 0.23125, 1.0}
+    // Difusa   {0.2775, 0.2775, 0.2775, 1.0}
+    // Especular{0.773911, 0.773911, 0.773911, 1.0}
+    // Shininess 89.6
+    materialB =
+    {
+        glm::vec4(0.23125f, 0.23125f, 0.23125f, 1.0f),
+        glm::vec4(0.2775f, 0.2775f, 0.2775f, 1.0f),
+        glm::vec4(0.773911f, 0.773911f, 0.773911f, 1.0f),
+        89.6f
+    };
+
+    // --------------------------------------------------
+    // Luces desde SceneConfig
+    // --------------------------------------------------
     mainLight =
     {
         SceneConfig::MAIN_LIGHT.position,
@@ -65,23 +53,25 @@ void Scene::Initialize(const std::string& modelPath)
 
     fillLight =
     {
-        SceneConfig::MAIN_LIGHT.position,
-        SceneConfig::MAIN_LIGHT.color,
-        SceneConfig::MAIN_LIGHT.intensity,
-        SceneConfig::MAIN_LIGHT.enabled
+        SceneConfig::FILL_LIGHT.position,
+        SceneConfig::FILL_LIGHT.color,
+        SceneConfig::FILL_LIGHT.intensity,
+        SceneConfig::FILL_LIGHT.enabled
     };
 
-    metalSpherePosition = SceneConfig::METAL_SPHERE_POSITION;
-    glassSpherePosition = SceneConfig::GLASS_SPHERE_POSITION;
-
-    metalSphereRadius = SceneConfig::METAL_SPHERE_RADIUS;
-    glassSphereRadius = SceneConfig::GLASS_SPHERE_RADIUS;
-
+    // --------------------------------------------------
+    // Transform del modelo
+    // --------------------------------------------------
     objPosition = SceneConfig::OBJ_POSITION;
     objScale = SceneConfig::OBJ_SCALE;
 
     currentView = 0;
     cameraPresetChanged = true;
+
+    renderSettings.currentMaterial = 0;
+    renderSettings.textureMappingEnabled = true;
+    renderSettings.showDebugHelpers = true;
+    renderSettings.lightingModel = LightingModel::Phong;
 }
 
 void Scene::Shutdown()
@@ -91,18 +81,43 @@ void Scene::Shutdown()
 
 void Scene::Update(const Input& input)
 {
-    if (input.ToggleMetalShaderPressed())
-        metalShaderEnabled = !metalShaderEnabled;
+    // Cambiar entre material A y B.
+    if (input.ToggleMaterialPressed())
+    {
+        renderSettings.currentMaterial =
+            renderSettings.currentMaterial == 0 ? 1 : 0;
+    }
 
-    if (input.ToggleGlassShaderPressed())
-        glassShaderEnabled = !glassShaderEnabled;
-
+    // Encender/apagar la luz azul secundaria.
     if (input.ToggleMainLightPressed())
-        mainLight.enabled = !mainLight.enabled;
+    {
+        fillLight.enabled = !fillLight.enabled;
+    }
 
+    // Activar/desactivar textura procedural.
+    if (input.ToggleTextureMappingPressed())
+    {
+        renderSettings.textureMappingEnabled =
+            !renderSettings.textureMappingEnabled;
+    }
+
+    // Cambiar entre Phong y Blinn-Phong.
+    if (input.ToggleLightingModelPressed())
+    {
+        renderSettings.lightingModel =
+            renderSettings.lightingModel == LightingModel::Phong
+            ? LightingModel::Blinn
+            : LightingModel::Phong;
+    }
+
+    // Mostrar/ocultar helpers.
     if (input.ToggleDebugHelpersPressed())
-        showDebugHelpers = !showDebugHelpers;
+    {
+        renderSettings.showDebugHelpers =
+            !renderSettings.showDebugHelpers;
+    }
 
+    // Presets de cámara.
     if (input.CameraPreset1Pressed())
     {
         currentView = 0;
@@ -126,15 +141,15 @@ void Scene::Render(Shader& shader, Camera& camera)
 {
     shader.Activate();
 
- 
     if (cameraPresetChanged)
     {
         ApplyCameraView(camera);
 
-        //modificar Position/Orientation aquí,
-        camera.updateMatrix(SceneConfig::CAMERA_FOV,
+        camera.updateMatrix(
+            SceneConfig::CAMERA_FOV,
             SceneConfig::CAMERA_NEAR,
-            SceneConfig::CAMERA_FAR);
+            SceneConfig::CAMERA_FAR
+        );
 
         cameraPresetChanged = false;
     }
@@ -147,31 +162,40 @@ void Scene::Render(Shader& shader, Camera& camera)
         camera.Position.y,
         camera.Position.z
     );
+
+    if (renderSettings.currentMaterial == 0)
+    {
+        SendMaterial(shader, materialA);
+    }
+    else
+    {
+        SendMaterial(shader, materialB);
+    }
+
     SendLight(shader, mainLight, SceneConfig::MAIN_LIGHT.uniformName);
     SendLight(shader, fillLight, SceneConfig::FILL_LIGHT.uniformName);
 
-    glUniform1i(
-        glGetUniformLocation(shader.ID, "metalShaderEnabled"),
-        metalShaderEnabled
-    );
+    SendRenderSettings(shader);
 
-    glUniform1i(
-        glGetUniformLocation(shader.ID, "glassShaderEnabled"),
-        glassShaderEnabled
-    );
-
-    SendRaytracingSceneUniforms(shader);
-
-    // Por ahora seguimos dibujando el OBJ con rasterización.
-    // Después esto se reemplazará por un full-screen quad para raytracing.
     if (model)
     {
-        SendMaterial(shader, objMaterial);
-
         glm::mat4 modelMatrix = GetObjModelMatrix();
-
         model->Draw(shader, camera, modelMatrix);
     }
+}
+
+void Scene::RenderDebug(Shader& debugShader, Camera& camera, float aspectRatio)
+{
+    if (!renderSettings.showDebugHelpers)
+        return;
+
+    BuildDebugHelpers(aspectRatio);
+
+    glDisable(GL_DEPTH_TEST);
+
+    debugHelpers.Draw(debugShader, camera);
+
+    glEnable(GL_DEPTH_TEST);
 }
 
 void Scene::ApplyCameraView(Camera& camera)
@@ -212,61 +236,6 @@ void Scene::BuildDebugHelpers(float aspectRatio)
     }
 }
 
-void Scene::RenderDebug(Shader& debugShader, Camera& camera, float aspectRatio)
-{
-    if (!showDebugHelpers)
-        return;
-
-    BuildDebugHelpers(aspectRatio);
-
-    glDisable(GL_DEPTH_TEST);
-
-    debugHelpers.Draw(debugShader, camera);
-
-    glEnable(GL_DEPTH_TEST);
-}
-
-void Scene::SendRaytracingSceneUniforms(Shader& shader)
-{
-    glUniform3f(
-        glGetUniformLocation(shader.ID, "metalSpherePosition"),
-        metalSpherePosition.x,
-        metalSpherePosition.y,
-        metalSpherePosition.z
-    );
-
-    glUniform1f(
-        glGetUniformLocation(shader.ID, "metalSphereRadius"),
-        metalSphereRadius
-    );
-
-    glUniform3f(
-        glGetUniformLocation(shader.ID, "glassSpherePosition"),
-        glassSpherePosition.x,
-        glassSpherePosition.y,
-        glassSpherePosition.z
-    );
-
-    glUniform1f(
-        glGetUniformLocation(shader.ID, "glassSphereRadius"),
-        glassSphereRadius
-    );
-
-    glUniform3f(
-        glGetUniformLocation(shader.ID, "boxMin"),
-        SceneConfig::BOX_MIN.x,
-        SceneConfig::BOX_MIN.y,
-        SceneConfig::BOX_MIN.z
-    );
-
-    glUniform3f(
-        glGetUniformLocation(shader.ID, "boxMax"),
-        SceneConfig::BOX_MAX.x,
-        SceneConfig::BOX_MAX.y,
-        SceneConfig::BOX_MAX.z
-    );
-}
-
 void Scene::SendMaterial(Shader& shader, const Material& material)
 {
     glUniform4f(
@@ -299,7 +268,11 @@ void Scene::SendMaterial(Shader& shader, const Material& material)
     );
 }
 
-void Scene::SendLight(Shader& shader, const Light& light, const std::string& uniformName)
+void Scene::SendLight(
+    Shader& shader,
+    const Light& light,
+    const std::string& uniformName
+)
 {
     glUniform3f(
         glGetUniformLocation(shader.ID, (uniformName + ".position").c_str()),
@@ -324,6 +297,19 @@ void Scene::SendLight(Shader& shader, const Light& light, const std::string& uni
     glUniform1i(
         glGetUniformLocation(shader.ID, (uniformName + ".enabled").c_str()),
         light.enabled
+    );
+}
+
+void Scene::SendRenderSettings(Shader& shader)
+{
+    glUniform1i(
+        glGetUniformLocation(shader.ID, "textureMappingEnabled"),
+        renderSettings.textureMappingEnabled
+    );
+
+    glUniform1i(
+        glGetUniformLocation(shader.ID, "lightingModel"),
+        static_cast<int>(renderSettings.lightingModel)
     );
 }
 

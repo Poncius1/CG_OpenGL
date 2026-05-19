@@ -79,7 +79,7 @@ int main()
     Input input;
 
     Scene scene;
-    scene.Initialize("models/CornellBox.obj");
+    scene.Initialize("models/Bunny.obj");
 
     const float aspectRatio =
         static_cast<float>(WINDOW_WIDTH) / static_cast<float>(WINDOW_HEIGHT);
