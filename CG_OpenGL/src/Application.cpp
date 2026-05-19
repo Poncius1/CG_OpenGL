@@ -31,7 +31,7 @@ GLFWwindow* CreateWindow()
     GLFWwindow* window = glfwCreateWindow(
         WINDOW_WIDTH,
         WINDOW_HEIGHT,
-        "Cornell Box Raytracing",
+        "Tarea 7 - Blinn Phong/Mapeo",
         nullptr,
         nullptr
     );
@@ -79,7 +79,7 @@ int main()
     Input input;
 
     Scene scene;
-    scene.Initialize("models/Bunny.obj");
+    scene.Initialize("models/teapot.obj");
 
     const float aspectRatio =
         static_cast<float>(WINDOW_WIDTH) / static_cast<float>(WINDOW_HEIGHT);
