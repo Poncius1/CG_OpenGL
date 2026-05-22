@@ -3,7 +3,7 @@
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aNormal;
 layout (location = 2) in vec3 aColor;
-layout (location = 3) in vec2 aTexUV;
+layout (location = 3) in vec2 aTex;
 
 out vec3 crntPos;
 out vec3 Normal;
@@ -15,15 +15,12 @@ uniform mat4 model;
 
 void main()
 {
-    vec4 worldPosition = model * vec4(aPos, 1.0);
+    vec4 worldPos = model * vec4(aPos, 1.0);
 
-    crntPos = worldPosition.xyz;
-
-    // Matriz correcta para transformar normales aunque haya escalado.
-    Normal = mat3(transpose(inverse(model))) * aNormal;
-
+    crntPos = worldPos.xyz;
+    Normal = normalize(mat3(transpose(inverse(model))) * aNormal);
     color = aColor;
-    texCoord = aTexUV;
+    texCoord = aTex;
 
-    gl_Position = camMatrix * worldPosition;
+    gl_Position = camMatrix * worldPos;
 }

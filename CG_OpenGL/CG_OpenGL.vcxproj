@@ -152,6 +152,8 @@
     <ClCompile Include="src\input\Input.cpp" />
     <ClCompile Include="src\rendering\Mesh.cpp" />
     <ClCompile Include="src\loaders\objModel.cpp" />
+    <ClCompile Include="src\rl-visualizer\trajectoryLoader.cpp" />
+    <ClCompile Include="src\rl-visualizer\trajectoryRenderer.cpp" />
     <ClCompile Include="src\scene\Scene.cpp" />
     <ClCompile Include="src\rendering\Shader.cpp" />
     <ClCompile Include="src\third_party\stb.cpp" />
@@ -164,6 +166,9 @@
     <ClInclude Include="src\camera\Camera.h" />
     <ClInclude Include="src\debug\Helpers.h" />
     <ClInclude Include="src\input\Input.h" />
+    <ClInclude Include="src\rl-visualizer\trajectoryLoader.h" />
+    <ClInclude Include="src\rl-visualizer\trajectoryPath.h" />
+    <ClInclude Include="src\rl-visualizer\trajectoryRenderer.h" />
     <ClInclude Include="src\scene\Light.h" />
     <ClInclude Include="src\scene\Material.h" />
     <ClInclude Include="src\rendering\Mesh.h" />
@@ -180,6 +185,9 @@
     <None Include="light.vert" />
     <None Include="debug.vert" />
     <None Include="debug.frag" />
+    <None Include="rl-paths\paths_debug.json" />
+    <None Include="trajectory.frag" />
+    <None Include="trajectory.vert" />
   </ItemGroup>
   <ItemGroup>
     <None Include="models\bunny.obj">

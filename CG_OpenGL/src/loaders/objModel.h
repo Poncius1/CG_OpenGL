@@ -57,14 +57,13 @@ private:
         glm::vec3& maxBounds
     );
 
-    void ComputeNormalizationMatrix(
-        const glm::vec3& minBounds,
-        const glm::vec3& maxBounds
-    );
+    glm::vec3 GetColorForMeshName(const std::string& meshName) const;
 
 private:
     std::unique_ptr<Mesh> mesh;
 
+    // IMPORTANT:
+    // We keep this as identity so the OpenGL scene matches the Python coordinates.
     glm::mat4 normalizationMatrix = glm::mat4(1.0f);
 
     std::vector<RayTriangle> triangles;

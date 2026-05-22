@@ -7,14 +7,6 @@ in vec3 Normal;
 in vec3 color;
 in vec2 texCoord;
 
-struct Material
-{
-    vec4 ambient;
-    vec4 diffuse;
-    vec4 specular;
-    float shininess;
-};
-
 struct Light
 {
     vec3 position;
@@ -23,44 +15,34 @@ struct Light
     bool enabled;
 };
 
-uniform Material material;
-
 uniform Light mainLight;
 uniform Light fillLight;
-
 uniform vec3 camPos;
 
-// false = sin textura procedural
-// true  = con textura procedural basada en UVs
-uniform bool textureMappingEnabled;
-
-// 0 = Phong
-// 1 = Blinn-Phong
-uniform int lightingModel;
-
-vec3 GetCheckerTexture(vec2 uv)
+bool IsLightPanelColor(vec3 baseColor)
 {
-    float scale = 12.0;
-
-    float checker =
-        mod(floor(uv.x * scale) + floor(uv.y * scale), 2.0);
-
-    vec3 colorA = vec3(1.0, 1.0, 1.0);
-    vec3 colorB = vec3(0.18, 0.18, 0.20);
-
-    return mix(colorA, colorB, checker);
+    return baseColor.r > 0.95 && baseColor.g > 0.80 && baseColor.b < 0.75;
 }
 
-vec3 CalculateLight(
+vec3 CalculatePointLight(
     Light light,
     vec3 baseColor,
-    vec3 normal,
-    vec3 viewDir
+    vec3 specularColor,
+    float shininess
 )
 {
     if (!light.enabled)
     {
         return vec3(0.0);
+    }
+
+    vec3 normal = normalize(Normal);
+    vec3 viewDir = normalize(camPos - crntPos);
+
+    // Cornell Box is viewed from inside, so two-sided lighting helps.
+    if (dot(normal, viewDir) < 0.0)
+    {
+        normal = -normal;
     }
 
     vec3 lightVector = light.position - crntPos;
@@ -71,98 +53,65 @@ vec3 CalculateLight(
     float attenuation = 1.0 /
     (
         1.0 +
-        0.09 * distanceToLight +
-        0.032 * distanceToLight * distanceToLight
+        0.18 * distanceToLight +
+        0.12 * distanceToLight * distanceToLight
     );
 
-    float diffuseFactor = max(dot(normal, lightDir), 0.0);
+    float diff = max(dot(normal, lightDir), 0.0);
 
-    float specularFactor = 0.0;
+    vec3 halfwayDir = normalize(lightDir + viewDir);
+    float spec = pow(max(dot(normal, halfwayDir), 0.0), shininess);
 
-    if (diffuseFactor > 0.0)
-    {
-        if (lightingModel == 0)
-        {
-            // Phong:
-            // usa el vector reflejado de la luz.
-            vec3 reflectDir = reflect(-lightDir, normal);
+    vec3 radiance = light.color.rgb * light.intensity * attenuation;
 
-            specularFactor = pow(
-                max(dot(viewDir, reflectDir), 0.0),
-                material.shininess
-            );
-        }
-        else
-        {
-            // Blinn-Phong:
-            // usa el halfway vector entre luz y cámara.
-            vec3 halfwayDir = normalize(lightDir + viewDir);
+    vec3 diffuse = baseColor * diff * radiance;
+    vec3 specular = specularColor * spec * radiance * 0.18;
 
-            specularFactor = pow(
-                max(dot(normal, halfwayDir), 0.0),
-                material.shininess
-            );
-        }
-    }
-
-    vec3 lightRadiance =
-        light.color.rgb *
-        light.intensity *
-        attenuation;
-
-    vec3 ambient =
-        material.ambient.rgb *
-        baseColor *
-        light.color.rgb *
-        light.intensity;
-
-    vec3 diffuse =
-        material.diffuse.rgb *
-        baseColor *
-        diffuseFactor *
-        lightRadiance;
-
-    vec3 specular =
-        material.specular.rgb *
-        specularFactor *
-        lightRadiance;
-
-    return ambient + diffuse + specular;
+    return diffuse + specular;
 }
 
 void main()
 {
-    vec3 normal = normalize(Normal);
-    vec3 viewDir = normalize(camPos - crntPos);
-
-    // Ayuda con modelos exportados con normales hacia afuera
-    // cuando se observan superficies internas.
-    if (dot(normal, viewDir) < 0.0)
-    {
-        normal = -normal;
-    }
-
-    // Color base:
-    // - color viene del loader/OBJ.
-    // - Si tu modelo no trae colores, normalmente será vec3(1.0).
     vec3 baseColor = color;
 
-    // Si la textura procedural está activa, se combina con el color base.
-    if (textureMappingEnabled)
+    // Visual emissive light panel.
+    if (IsLightPanelColor(baseColor))
     {
-        vec3 checkerColor = GetCheckerTexture(texCoord);
-        baseColor *= checkerColor;
+        vec3 emissive = vec3(1.0, 0.88, 0.58) * 1.55;
+        FragColor = vec4(clamp(emissive, 0.0, 1.0), 1.0);
+        return;
     }
 
-    vec3 finalColor = vec3(0.0);
+    float shininess = 24.0;
+    vec3 specularColor = vec3(0.06);
 
-    finalColor += CalculateLight(mainLight, baseColor, normal, viewDir);
-    finalColor += CalculateLight(fillLight, baseColor, normal, viewDir);
+    // Sphere / brighter objects.
+    if (baseColor.r > 0.70 && baseColor.g > 0.70 && baseColor.b > 0.70)
+    {
+        shininess = 42.0;
+        specularColor = vec3(0.14);
+    }
 
-    // Evita valores fuera de rango antes de gamma.
-    finalColor = clamp(finalColor, 0.0, 1.0);
+    vec3 warmAmbient = vec3(0.19, 0.155, 0.115);
+    vec3 ambient = baseColor * warmAmbient;
 
-    // Gamma correction simple para que el resultado no se vea tan oscuro.
+    vec3 directLighting =
+        CalculatePointLight(mainLight, baseColor, specularColor, shininess) +
+        CalculatePointLight(fillLight, baseColor, specularColor, 16.0);
+
+    // Fake warm indirect bounce for Cornell Box feel.
+    vec3 indirectBounce = baseColor * vec3(0.13, 0.095, 0.065);
+
+    // Subtle top warm gradient.
+    float heightFactor = clamp((crntPos.y - 0.05) / 1.55, 0.0, 1.0);
+    vec3 ceilingWarmth = baseColor * vec3(0.08, 0.055, 0.035) * heightFactor;
+
+    vec3 finalColor = ambient + directLighting + indirectBounce + ceilingWarmth;
+
+    // Filmic compression.
+    finalColor = finalColor / (finalColor + vec3(1.0));
+
+    // Gamma correction.
     finalColor = pow(finalColor, vec3(1.0 / 2.2));
 
     FragColor = vec4(finalColor, 1.0);

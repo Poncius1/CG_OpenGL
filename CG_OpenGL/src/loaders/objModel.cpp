@@ -3,6 +3,7 @@
 #include <iostream>
 #include <limits>
 #include <algorithm>
+#include <string>
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -26,10 +27,7 @@ bool ObjModel::LoadWithAssimp(const std::string& path)
         aiProcess_Triangulate |
         aiProcess_GenSmoothNormals |
         aiProcess_JoinIdenticalVertices |
-        aiProcess_ImproveCacheLocality |
-        aiProcess_OptimizeMeshes |
-        aiProcess_OptimizeGraph |
-        aiProcess_FlipUVs
+        aiProcess_ImproveCacheLocality
     );
 
     if (!scene || !scene->mRootNode || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE)
@@ -65,15 +63,32 @@ bool ObjModel::LoadWithAssimp(const std::string& path)
         return false;
     }
 
-    ComputeNormalizationMatrix(minBounds, maxBounds);
+    // No normalize.
+    // The model must keep its original OBJ coordinates so it matches Python.
+    normalizationMatrix = glm::mat4(1.0f);
 
     mesh = std::make_unique<Mesh>(vertices, indices, textures);
+
+    glm::vec3 center = (minBounds + maxBounds) * 0.5f;
+    glm::vec3 size = maxBounds - minBounds;
 
     std::cout << "OBJ cargado correctamente con Assimp: " << path << std::endl;
     std::cout << "Meshes: " << scene->mNumMeshes << std::endl;
     std::cout << "Vertices unicos/render: " << vertices.size() << std::endl;
     std::cout << "Indices: " << indices.size() << std::endl;
     std::cout << "Triangulos para raytracing: " << triangles.size() << std::endl;
+
+    std::cout << "Bounds min: "
+        << minBounds.x << ", " << minBounds.y << ", " << minBounds.z << std::endl;
+
+    std::cout << "Bounds max: "
+        << maxBounds.x << ", " << maxBounds.y << ", " << maxBounds.z << std::endl;
+
+    std::cout << "Centro modelo: "
+        << center.x << ", " << center.y << ", " << center.z << std::endl;
+
+    std::cout << "Tamano modelo: "
+        << size.x << ", " << size.y << ", " << size.z << std::endl;
 
     return true;
 }
@@ -125,6 +140,11 @@ void ObjModel::ProcessMesh(
 {
     const GLuint baseVertex = static_cast<GLuint>(vertices.size());
 
+    std::string meshName = assimpMesh->mName.C_Str();
+    glm::vec3 meshColor = GetColorForMeshName(meshName);
+
+    std::cout << "Mesh: " << meshName << std::endl;
+
     for (unsigned int i = 0; i < assimpMesh->mNumVertices; ++i)
     {
         Vertex vertex{};
@@ -166,18 +186,8 @@ void ObjModel::ProcessMesh(
             vertex.texUV = glm::vec2(0.0f);
         }
 
-        if (assimpMesh->HasVertexColors(0))
-        {
-            vertex.color = glm::vec3(
-                assimpMesh->mColors[0][i].r,
-                assimpMesh->mColors[0][i].g,
-                assimpMesh->mColors[0][i].b
-            );
-        }
-        else
-        {
-            vertex.color = glm::vec3(1.0f);
-        }
+        // We ignore MTL. Color comes from group/mesh name.
+        vertex.color = meshColor;
 
         vertices.push_back(vertex);
     }
@@ -210,31 +220,33 @@ void ObjModel::ProcessMesh(
     }
 }
 
-void ObjModel::ComputeNormalizationMatrix(
-    const glm::vec3& minBounds,
-    const glm::vec3& maxBounds
-)
+glm::vec3 ObjModel::GetColorForMeshName(const std::string& meshName) const
 {
-    glm::vec3 size = maxBounds - minBounds;
-    glm::vec3 center = (minBounds + maxBounds) * 0.5f;
+    if (meshName.find("LeftWall") != std::string::npos)
+        return glm::vec3(0.72f, 0.06f, 0.04f);
 
-    float largestAxis = std::max(size.x, std::max(size.y, size.z));
+    if (meshName.find("RightWall") != std::string::npos)
+        return glm::vec3(0.05f, 0.48f, 0.10f);
 
-    float scale = 1.0f;
+    if (meshName.find("Light") != std::string::npos)
+        return glm::vec3(1.0f, 0.92f, 0.62f);
 
-    if (largestAxis > 0.0f)
-        scale = 1.8f / largestAxis;
+    if (meshName.find("RightSphere") != std::string::npos)
+        return glm::vec3(0.78f, 0.78f, 0.75f);
 
-    normalizationMatrix = glm::mat4(1.0f);
-    normalizationMatrix = glm::scale(normalizationMatrix, glm::vec3(scale));
-    normalizationMatrix = glm::translate(normalizationMatrix, -center);
+    if (meshName.find("TallBox") != std::string::npos)
+        return glm::vec3(0.68f, 0.65f, 0.58f);
 
-    std::cout << "Centro modelo: "
-        << center.x << ", "
-        << center.y << ", "
-        << center.z << std::endl;
+    if (meshName.find("Floor") != std::string::npos)
+        return glm::vec3(0.78f, 0.76f, 0.68f);
 
-    std::cout << "Escala normalizada: " << scale << std::endl;
+    if (meshName.find("Ceiling") != std::string::npos)
+        return glm::vec3(0.78f, 0.76f, 0.68f);
+
+    if (meshName.find("BackWall") != std::string::npos)
+        return glm::vec3(0.78f, 0.76f, 0.68f);
+
+    return glm::vec3(0.75f, 0.73f, 0.66f);
 }
 
 void ObjModel::Draw(

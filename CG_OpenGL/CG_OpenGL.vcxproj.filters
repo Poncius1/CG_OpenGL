@@ -57,6 +57,12 @@
     <ClCompile Include="src\debug\Helpers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\rl-visualizer\trajectoryLoader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\rl-visualizer\trajectoryRenderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\rendering\Shader.h">
@@ -101,6 +107,15 @@
     <ClInclude Include="src\scene\SceneConfig.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\rl-visualizer\trajectoryLoader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\rl-visualizer\trajectoryPath.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\rl-visualizer\trajectoryRenderer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="default.frag">
@@ -119,5 +134,8 @@
     <None Include="models\CornellBox.obj" />
     <None Include="debug.vert" />
     <None Include="debug.frag" />
+    <None Include="trajectory.vert" />
+    <None Include="trajectory.frag" />
+    <None Include="rl-paths\paths_debug.json" />
   </ItemGroup>
 </Project>

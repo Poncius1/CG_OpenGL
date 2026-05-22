@@ -77,5 +77,11 @@ void Mesh::Draw
 	glUniformMatrix4fv(glGetUniformLocation(shader.ID, "model"), 1, GL_FALSE, glm::value_ptr(matrix));
 
 	// Draw the actual mesh
-	glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
+	glDrawElements(
+		GL_TRIANGLES,
+		static_cast<GLsizei>(indices.size()),
+		GL_UNSIGNED_INT,
+		0
+	);
 }
+
