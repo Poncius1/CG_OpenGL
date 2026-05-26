@@ -1,9 +1,6 @@
 #include "Scene.h"
 
-#include <string>
-
 #include "scene/SceneConfig.h"
-
 
 void Scene::Initialize(const std::string& modelPath)
 {
@@ -11,14 +8,6 @@ void Scene::Initialize(const std::string& modelPath)
 
     debugHelpers.Initialize();
 
-    
-    // Materiales requeridos
-
-    // Material A:
-    // Ambiente {0.0, 0.0, 0.0, 1.0}
-    // Difusa   {0.50, 0.50, 0.50, 1.0}
-    // Especular{0.70, 0.70, 0.70, 1.0}
-    // Shininess 32.0
     materialA =
     {
         glm::vec4(0.0f, 0.0f, 0.0f, 1.0f),
@@ -27,11 +16,6 @@ void Scene::Initialize(const std::string& modelPath)
         32.0f
     };
 
-    // Material B:
-    // Ambiente {0.23125, 0.23125, 0.23125, 1.0}
-    // Difusa   {0.2775, 0.2775, 0.2775, 1.0}
-    // Especular{0.773911, 0.773911, 0.773911, 1.0}
-    // Shininess 89.6
     materialB =
     {
         glm::vec4(0.23125f, 0.23125f, 0.23125f, 1.0f),
@@ -40,9 +24,6 @@ void Scene::Initialize(const std::string& modelPath)
         89.6f
     };
 
-    // --------------------------------------------------
-    // Luces desde SceneConfig
-    // --------------------------------------------------
     mainLight =
     {
         SceneConfig::MAIN_LIGHT.position,
@@ -59,14 +40,14 @@ void Scene::Initialize(const std::string& modelPath)
         SceneConfig::FILL_LIGHT.enabled
     };
 
-    // --------------------------------------------------
-    // Transform del modelo
-    // --------------------------------------------------
     objPosition = SceneConfig::OBJ_POSITION;
     objScale = SceneConfig::OBJ_SCALE;
 
     currentView = 0;
     cameraPresetChanged = true;
+
+    metalShaderEnabled = true;
+    glassShaderEnabled = true;
 
     renderSettings.currentMaterial = 0;
     renderSettings.textureMappingEnabled = true;
@@ -81,27 +62,33 @@ void Scene::Shutdown()
 
 void Scene::Update(const Input& input)
 {
-    // Cambiar entre material A y B.
     if (input.ToggleMaterialPressed())
     {
         renderSettings.currentMaterial =
             renderSettings.currentMaterial == 0 ? 1 : 0;
     }
 
-    // Encender/apagar la luz azul secundaria.
     if (input.ToggleMainLightPressed())
     {
-        fillLight.enabled = !fillLight.enabled;
+        mainLight.enabled = !mainLight.enabled;
     }
 
-    // Activar/desactivar textura procedural.
+    if (input.ToggleMetalShaderPressed())
+    {
+        metalShaderEnabled = !metalShaderEnabled;
+    }
+
+    if (input.ToggleGlassShaderPressed())
+    {
+        glassShaderEnabled = !glassShaderEnabled;
+    }
+
     if (input.ToggleTextureMappingPressed())
     {
         renderSettings.textureMappingEnabled =
             !renderSettings.textureMappingEnabled;
     }
 
-    // Cambiar entre Phong y Blinn-Phong.
     if (input.ToggleLightingModelPressed())
     {
         renderSettings.lightingModel =
@@ -110,14 +97,12 @@ void Scene::Update(const Input& input)
             : LightingModel::Phong;
     }
 
-    // Mostrar/ocultar helpers.
     if (input.ToggleDebugHelpersPressed())
     {
         renderSettings.showDebugHelpers =
             !renderSettings.showDebugHelpers;
     }
 
-    // Presets de cámara.
     if (input.CameraPreset1Pressed())
     {
         currentView = 0;
@@ -141,18 +126,7 @@ void Scene::Render(Shader& shader, Camera& camera)
 {
     shader.Activate();
 
-    if (cameraPresetChanged)
-    {
-        ApplyCameraView(camera);
-
-        camera.updateMatrix(
-            SceneConfig::CAMERA_FOV,
-            SceneConfig::CAMERA_NEAR,
-            SceneConfig::CAMERA_FAR
-        );
-
-        cameraPresetChanged = false;
-    }
+    ApplyPendingCameraPreset(camera);
 
     camera.Matrix(shader, "camMatrix");
 
@@ -179,7 +153,7 @@ void Scene::Render(Shader& shader, Camera& camera)
 
     if (model)
     {
-        glm::mat4 modelMatrix = GetObjModelMatrix();
+        const glm::mat4 modelMatrix = GetObjModelMatrix();
         model->Draw(shader, camera, modelMatrix);
     }
 }
@@ -192,10 +166,95 @@ void Scene::RenderDebug(Shader& debugShader, Camera& camera, float aspectRatio)
     BuildDebugHelpers(aspectRatio);
 
     glDisable(GL_DEPTH_TEST);
-
     debugHelpers.Draw(debugShader, camera);
-
     glEnable(GL_DEPTH_TEST);
+}
+
+void Scene::ApplyPendingCameraPreset(Camera& camera)
+{
+    if (!cameraPresetChanged)
+        return;
+
+    ApplyCameraView(camera);
+
+    camera.updateMatrix(
+        SceneConfig::CAMERA_FOV,
+        SceneConfig::CAMERA_NEAR,
+        SceneConfig::CAMERA_FAR
+    );
+
+    cameraPresetChanged = false;
+}
+
+bool Scene::IsMainLightEnabled() const
+{
+    return mainLight.enabled;
+}
+
+bool Scene::IsMetalShaderEnabled() const
+{
+    return metalShaderEnabled;
+}
+
+bool Scene::IsGlassShaderEnabled() const
+{
+    return glassShaderEnabled;
+}
+
+std::vector<GpuTriangle> Scene::BuildGpuTriangles() const
+{
+    std::vector<GpuTriangle> gpuTriangles;
+
+    if (!model)
+        return gpuTriangles;
+
+    const std::vector<RayTriangle>& sourceTriangles =
+        model->GetTriangles();
+
+    gpuTriangles.reserve(sourceTriangles.size());
+
+    // El rasterizer dibuja con parentTransform * normalizationMatrix.
+    // El raytracer debe usar exactamente la misma transformación.
+    const glm::mat4 objectMatrix =
+        GetObjModelMatrix() * model->GetNormalizationMatrix();
+
+    const glm::mat3 normalMatrix =
+        glm::mat3(glm::transpose(glm::inverse(objectMatrix)));
+
+    for (const RayTriangle& triangle : sourceTriangles)
+    {
+        GpuTriangle gpuTriangle{};
+
+        glm::vec3 v0 = glm::vec3(objectMatrix * glm::vec4(triangle.v0, 1.0f));
+        glm::vec3 v1 = glm::vec3(objectMatrix * glm::vec4(triangle.v1, 1.0f));
+        glm::vec3 v2 = glm::vec3(objectMatrix * glm::vec4(triangle.v2, 1.0f));
+
+        glm::vec3 n0 = glm::normalize(normalMatrix * triangle.n0);
+        glm::vec3 n1 = glm::normalize(normalMatrix * triangle.n1);
+        glm::vec3 n2 = glm::normalize(normalMatrix * triangle.n2);
+
+        gpuTriangle.v0 = glm::vec4(v0, 1.0f);
+        gpuTriangle.v1 = glm::vec4(v1, 1.0f);
+        gpuTriangle.v2 = glm::vec4(v2, 1.0f);
+
+        gpuTriangle.n0 = glm::vec4(n0, 0.0f);
+        gpuTriangle.n1 = glm::vec4(n1, 0.0f);
+        gpuTriangle.n2 = glm::vec4(n2, 0.0f);
+
+        gpuTriangle.albedo = glm::vec4(triangle.albedo, 1.0f);
+
+        gpuTriangle.materialData =
+        {
+            static_cast<float>(triangle.materialType),
+            triangle.roughness,
+            triangle.ior,
+            triangle.emissionStrength
+        };
+
+        gpuTriangles.push_back(gpuTriangle);
+    }
+
+    return gpuTriangles;
 }
 
 void Scene::ApplyCameraView(Camera& camera)

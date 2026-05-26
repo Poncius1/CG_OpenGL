@@ -1,20 +1,27 @@
 #include <iostream>
+#include <vector>
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
+
 #include <glm.hpp>
 
 #include "camera/Camera.h"
 #include "input/Input.h"
+#include "rendering/GpuTriangle.h"
+#include "rendering/RaytracingRenderer.h"
+#include "rendering/Shader.h"
 #include "scene/Scene.h"
 #include "scene/SceneConfig.h"
-#include "rendering/Shader.h"
 
 constexpr unsigned int WINDOW_WIDTH = 960;
 constexpr unsigned int WINDOW_HEIGHT = 540;
+
+enum class RenderMode
+{
+    Rasterized = 0,
+    Raytracing = 1
+};
 
 GLFWwindow* CreateWindow()
 {
@@ -24,14 +31,14 @@ GLFWwindow* CreateWindow()
         return nullptr;
     }
 
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     GLFWwindow* window = glfwCreateWindow(
         WINDOW_WIDTH,
         WINDOW_HEIGHT,
-        "Tarea 7 - Blinn Phong/Mapeo",
+        "Proyecto 2 - Cornell Box Raytracing",
         nullptr,
         nullptr
     );
@@ -45,6 +52,8 @@ GLFWwindow* CreateWindow()
 
     glfwMakeContextCurrent(window);
 
+    glewExperimental = GL_TRUE;
+
     if (glewInit() != GLEW_OK)
     {
         std::cout << "Failed to initialize GLEW\n";
@@ -53,9 +62,56 @@ GLFWwindow* CreateWindow()
         return nullptr;
     }
 
+    std::cout << "OpenGL Vendor: "
+        << glGetString(GL_VENDOR)
+        << "\n";
+
+    std::cout << "OpenGL Renderer: "
+        << glGetString(GL_RENDERER)
+        << "\n";
+
+    std::cout << "OpenGL Version: "
+        << glGetString(GL_VERSION)
+        << "\n";
+
+    std::cout << "GLSL Version: "
+        << glGetString(GL_SHADING_LANGUAGE_VERSION)
+        << "\n";
+
+    if (GLEW_VERSION_4_3)
+    {
+        std::cout << "OpenGL 4.3 supported.\n";
+    }
+    else
+    {
+        std::cout << "OpenGL 4.3 NOT supported.\n";
+    }
+
     glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
     return window;
+}
+
+void PrintControls()
+{
+    std::cout << "\nControls:\n";
+    std::cout << "  ESC   - Exit\n";
+    std::cout << "  R     - Toggle Rasterized / Raytracing\n";
+    std::cout << "  1/2/3 - Camera presets\n";
+    std::cout << "  L     - Toggle main light\n";
+    std::cout << "  M     - Toggle metal shader\n";
+    std::cout << "  G     - Toggle glass shader\n";
+    std::cout << "  H     - Toggle debug helpers\n";
+    std::cout << "  T     - Toggle texture mapping in raster mode\n";
+    std::cout << "  B     - Toggle Phong / Blinn in raster mode\n\n";
+}
+
+void PrintRenderMode(RenderMode mode)
+{
+    if (mode == RenderMode::Rasterized)
+        std::cout << "Render mode: Rasterized\n";
+    else
+        std::cout << "Render mode: Raytracing\n";
 }
 
 int main()
@@ -66,9 +122,22 @@ int main()
         return -1;
 
     glEnable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
 
-    Shader shaderProgram("default.vert", "default.frag");
-    Shader debugShader("debug.vert", "debug.frag");
+    Shader rasterShader(
+        "src/shaders/default.vert",
+        "src/shaders/default.frag"
+    );
+
+    Shader debugShader(
+        "src/shaders/debug.vert",
+        "src/shaders/debug.frag"
+    );
+
+    Shader raytracingShader(
+        "src/shaders/raytracing.vert",
+        "src/shaders/raytracing.frag"
+    );
 
     Camera camera(
         WINDOW_WIDTH,
@@ -79,27 +148,55 @@ int main()
     Input input;
 
     Scene scene;
-    scene.Initialize("models/teapot.obj");
+    scene.Initialize("models/CornellBox.obj");
+
+    RaytracingRenderer raytracingRenderer;
+    raytracingRenderer.Initialize();
+
+    const std::vector<GpuTriangle> gpuTriangles =
+        scene.BuildGpuTriangles();
+
+    raytracingRenderer.UploadTriangles(gpuTriangles);
+
+    RenderMode renderMode = RenderMode::Raytracing;
 
     const float aspectRatio =
-        static_cast<float>(WINDOW_WIDTH) / static_cast<float>(WINDOW_HEIGHT);
+        static_cast<float>(WINDOW_WIDTH) /
+        static_cast<float>(WINDOW_HEIGHT);
+
+    PrintControls();
+    PrintRenderMode(renderMode);
 
     float lastTime = static_cast<float>(glfwGetTime());
 
     while (!glfwWindowShouldClose(window))
     {
-        float currentTime = static_cast<float>(glfwGetTime());
-        float deltaTime = currentTime - lastTime;
+        const float currentTime = static_cast<float>(glfwGetTime());
+        const float deltaTime = currentTime - lastTime;
         lastTime = currentTime;
 
         input.Update(window);
 
         if (input.ShouldClose())
+        {
             glfwSetWindowShouldClose(window, true);
+        }
+
+        if (input.ToggleRenderModePressed())
+        {
+            renderMode =
+                renderMode == RenderMode::Rasterized
+                ? RenderMode::Raytracing
+                : RenderMode::Rasterized;
+
+            PrintRenderMode(renderMode);
+        }
 
         scene.Update(input);
 
         camera.Inputs(window, deltaTime);
+
+        scene.ApplyPendingCameraPreset(camera);
 
         camera.updateMatrix(
             SceneConfig::CAMERA_FOV,
@@ -110,7 +207,22 @@ int main()
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        scene.Render(shaderProgram, camera);
+        if (renderMode == RenderMode::Rasterized)
+        {
+            scene.Render(rasterShader, camera);
+        }
+        else
+        {
+            raytracingRenderer.Render(
+                raytracingShader,
+                camera,
+                aspectRatio,
+                scene.IsMainLightEnabled(),
+                scene.IsMetalShaderEnabled(),
+                scene.IsGlassShaderEnabled()
+            );
+        }
+
         scene.RenderDebug(debugShader, camera, aspectRatio);
 
         glfwSwapBuffers(window);
@@ -119,10 +231,12 @@ int main()
         input.EndFrame();
     }
 
+    raytracingRenderer.Shutdown();
     scene.Shutdown();
 
+    raytracingShader.Delete();
     debugShader.Delete();
-    shaderProgram.Delete();
+    rasterShader.Delete();
 
     glfwDestroyWindow(window);
     glfwTerminate();

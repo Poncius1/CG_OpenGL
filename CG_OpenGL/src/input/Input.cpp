@@ -18,7 +18,9 @@ void Input::RegisterTrackedKeys()
         GLFW_KEY_LEFT_CONTROL,
         GLFW_KEY_LEFT_SHIFT,
 
+        GLFW_KEY_R,
         GLFW_KEY_M,
+        GLFW_KEY_G,
         GLFW_KEY_T,
         GLFW_KEY_L,
         GLFW_KEY_H,
@@ -96,6 +98,11 @@ bool Input::ShouldClose() const
     return IsKeyPressed(GLFW_KEY_ESCAPE);
 }
 
+bool Input::ToggleRenderModePressed() const
+{
+    return IsKeyPressed(GLFW_KEY_R);
+}
+
 bool Input::ToggleDebugHelpersPressed() const
 {
     return IsKeyPressed(GLFW_KEY_H);
@@ -106,19 +113,14 @@ bool Input::ToggleMainLightPressed() const
     return IsKeyPressed(GLFW_KEY_L);
 }
 
-bool Input::CameraPreset1Pressed() const
+bool Input::ToggleMetalShaderPressed() const
 {
-    return IsKeyPressed(GLFW_KEY_1);
+    return IsKeyPressed(GLFW_KEY_M);
 }
 
-bool Input::CameraPreset2Pressed() const
+bool Input::ToggleGlassShaderPressed() const
 {
-    return IsKeyPressed(GLFW_KEY_2);
-}
-
-bool Input::CameraPreset3Pressed() const
-{
-    return IsKeyPressed(GLFW_KEY_3);
+    return IsKeyPressed(GLFW_KEY_G);
 }
 
 bool Input::ToggleMaterialPressed() const
@@ -134,4 +136,19 @@ bool Input::ToggleTextureMappingPressed() const
 bool Input::ToggleLightingModelPressed() const
 {
     return IsKeyPressed(GLFW_KEY_B);
+}
+
+bool Input::CameraPreset1Pressed() const
+{
+    return IsKeyPressed(GLFW_KEY_1);
+}
+
+bool Input::CameraPreset2Pressed() const
+{
+    return IsKeyPressed(GLFW_KEY_2);
+}
+
+bool Input::CameraPreset3Pressed() const
+{
+    return IsKeyPressed(GLFW_KEY_3);
 }

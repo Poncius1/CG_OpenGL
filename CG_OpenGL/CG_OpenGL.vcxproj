@@ -152,6 +152,7 @@
     <ClCompile Include="src\input\Input.cpp" />
     <ClCompile Include="src\rendering\Mesh.cpp" />
     <ClCompile Include="src\loaders\objModel.cpp" />
+    <ClCompile Include="src\rendering\RaytracingRenderer.cpp" />
     <ClCompile Include="src\scene\Scene.cpp" />
     <ClCompile Include="src\rendering\Shader.cpp" />
     <ClCompile Include="src\third_party\stb.cpp" />
@@ -164,6 +165,8 @@
     <ClInclude Include="src\camera\Camera.h" />
     <ClInclude Include="src\debug\Helpers.h" />
     <ClInclude Include="src\input\Input.h" />
+    <ClInclude Include="src\rendering\GpuTriangle.h" />
+    <ClInclude Include="src\rendering\RaytracingRenderer.h" />
     <ClInclude Include="src\scene\Light.h" />
     <ClInclude Include="src\scene\Material.h" />
     <ClInclude Include="src\rendering\Mesh.h" />
@@ -180,6 +183,15 @@
     <None Include="light.vert" />
     <None Include="debug.vert" />
     <None Include="debug.frag" />
+    <None Include="src\shaders\debug.frag" />
+    <None Include="src\shaders\debug.vert" />
+    <None Include="src\shaders\default.frag" />
+    <None Include="src\shaders\default.vert" />
+    <None Include="src\shaders\light.frag" />
+    <None Include="src\shaders\light.vert" />
+    <None Include="src\shaders\raytracing.frag" />
+    <None Include="src\shaders\raytracing.vert" />
+    <None Include="x64\assimp-vc145-mt.dll" />
   </ItemGroup>
   <ItemGroup>
     <None Include="models\bunny.obj">

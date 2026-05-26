@@ -1,16 +1,24 @@
 #pragma once
 
-#include <string>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include <GL/glew.h>
 #include <glm.hpp>
 #include <gtc/matrix_transform.hpp>
 
-#include "rendering/Mesh.h"
 #include "camera/Camera.h"
+#include "rendering/Mesh.h"
 #include "rendering/Shader.h"
+
+enum RayMaterialType
+{
+    RAY_MATERIAL_DIFFUSE = 0,
+    RAY_MATERIAL_METAL = 1,
+    RAY_MATERIAL_GLASS = 2,
+    RAY_MATERIAL_LIGHT = 3
+};
 
 struct RayTriangle
 {
@@ -21,6 +29,14 @@ struct RayTriangle
     glm::vec3 n0;
     glm::vec3 n1;
     glm::vec3 n2;
+
+    glm::vec3 albedo = glm::vec3(1.0f);
+
+    int materialType = RAY_MATERIAL_DIFFUSE;
+
+    float roughness = 1.0f;
+    float ior = 1.0f;
+    float emissionStrength = 0.0f;
 };
 
 class ObjModel
@@ -35,6 +51,19 @@ public:
     );
 
     const std::vector<RayTriangle>& GetTriangles() const;
+    const glm::mat4& GetNormalizationMatrix() const;
+
+private:
+    struct GroupMaterial
+    {
+        glm::vec3 albedo = glm::vec3(1.0f);
+
+        int materialType = RAY_MATERIAL_DIFFUSE;
+
+        float roughness = 1.0f;
+        float ior = 1.0f;
+        float emissionStrength = 0.0f;
+    };
 
 private:
     bool LoadWithAssimp(const std::string& path);
@@ -51,11 +80,14 @@ private:
     void ProcessMesh(
         struct aiMesh* assimpMesh,
         const struct aiScene* scene,
+        const std::string& nodeName,
         std::vector<Vertex>& vertices,
         std::vector<GLuint>& indices,
         glm::vec3& minBounds,
         glm::vec3& maxBounds
     );
+
+    GroupMaterial GetMaterialFromGroupName(const std::string& groupName) const;
 
     void ComputeNormalizationMatrix(
         const glm::vec3& minBounds,

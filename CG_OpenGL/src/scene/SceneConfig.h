@@ -15,6 +15,21 @@ namespace SceneConfig
     inline const glm::vec3 BOX_MIN = glm::vec3(-1.0f, -1.0f, -1.0f);
     inline const glm::vec3 BOX_MAX = glm::vec3(1.0f, 1.0f, 1.0f);
 
+    // --------------------------------------------------
+// Raytracing analytic objects
+// --------------------------------------------------
+
+    inline const glm::vec3 METAL_BOX_MIN = glm::vec3(-0.70f, -1.00f, -0.55f);
+    inline const glm::vec3 METAL_BOX_MAX = glm::vec3(-0.22f, 0.35f, -0.05f);
+
+    inline const glm::vec3 METAL_BOX_ALBEDO = glm::vec3(0.86f, 0.82f, 0.72f);
+    constexpr float METAL_BOX_ROUGHNESS = 0.04f;
+
+    inline const glm::vec3 GLASS_SPHERE_ALBEDO = glm::vec3(0.90f, 0.97f, 1.00f);
+    constexpr float GLASS_SPHERE_IOR = 1.5f;
+
+
+
     struct SceneLight
     {
         const char* uniformName;
@@ -34,42 +49,44 @@ namespace SceneConfig
     {
         "mainLight",
 
-        // Luz blanca siempre encendida.
-        glm::vec3(0.0f, 1.0f, 1.8f),
+        // Luz principal cerca del techo, ligeramente hacia el frente.
+        glm::vec3(0.0f, 0.92f, 0.10f),
 
-        glm::vec4(1.0f, 1.0f, 1.0f, 1.0f),
+        // Blanco con tinte azul.
+        glm::vec4(0.78f, 0.84f, 1.00f, 1.0f),
 
-        // Intensidad requerida.
-        1.0f,
+        // Suficiente para iluminar sin quemar demasiado.
+        3.2f,
 
         true,
 
-        // No se apaga.
-        false,
+        // Toggleable.
+        true,
 
         0.12f,
-        glm::vec3(1.0f, 1.0f, 1.0f)
+        glm::vec3(0.70f, 0.85f, 1.0f)
     };
 
     inline const SceneLight FILL_LIGHT =
     {
         "fillLight",
 
-        // Luz azul secundaria.
-        glm::vec3(-1.4f, 0.7f, 1.2f),
+        // Luz tenue fuera de la caja, al frente e izquierda.
+        glm::vec3(-1.35f, 0.35f, 2.35f),
 
-        glm::vec4(0.25f, 0.45f, 1.0f, 1.0f),
+        // Azul más suave.
+        glm::vec4(0.25f, 0.38f, 1.00f, 1.0f),
 
-        // Intensidad requerida.
-        1.0f,
+        // Muy tenue, siempre encendida.
+        0.55f,
 
         true,
 
-        // Esta sí se puede apagar/encender.
-        true,
+        // No se apaga.
+        false,
 
         0.10f,
-        glm::vec3(0.30f, 0.45f, 1.0f)
+        glm::vec3(0.30f, 0.45f, 0.90f)
     };
 
     inline const std::array<SceneLight, 2> LIGHTS =
@@ -95,9 +112,9 @@ namespace SceneConfig
         {
             0,
 
-            // Cámara frontal.
-            glm::vec3(0.0f, 0.35f, 3.20f),
-            glm::vec3(0.0f, 0.15f, 0.0f),
+            // Cámara frontal. Buena para comparar raster vs raytracing.
+            glm::vec3(0.0f, 0.10f, 3.15f),
+            glm::vec3(0.0f, 0.00f, 0.0f),
 
             WORLD_UP,
             glm::vec3(1.0f, 1.0f, 0.0f)
@@ -107,9 +124,9 @@ namespace SceneConfig
         {
             1,
 
-            // Cámara trasera.
-            glm::vec3(0.0f, 0.35f, -3.20f),
-            glm::vec3(0.0f, 0.15f, 0.0f),
+            // Cámara 3/4. Mejor para apreciar metal, vidrio y profundidad.
+            glm::vec3(2.25f, 0.45f, 2.85f),
+            glm::vec3(0.0f, 0.00f, -0.05f),
 
             WORLD_UP,
             glm::vec3(1.0f, 0.5f, 0.0f)
@@ -119,9 +136,9 @@ namespace SceneConfig
         {
             2,
 
-            // Cámara 3/4
-            glm::vec3(2.20f, 0.65f, 2.80f),
-            glm::vec3(0.0f, 0.20f, 0.0f),
+            // Cámara lateral/interior. Ayuda a ver sombras y refracción.
+            glm::vec3(-2.15f, 0.35f, 2.25f),
+            glm::vec3(-0.15f, -0.05f, -0.05f),
 
             WORLD_UP,
             glm::vec3(0.0f, 1.0f, 1.0f)

@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -13,6 +14,7 @@
 #include "debug/Helpers.h"
 #include "input/Input.h"
 #include "loaders/ObjModel.h"
+#include "rendering/GpuTriangle.h"
 #include "rendering/Shader.h"
 #include "scene/Light.h"
 #include "scene/Material.h"
@@ -44,9 +46,16 @@ public:
     void Render(Shader& shader, Camera& camera);
     void RenderDebug(Shader& debugShader, Camera& camera, float aspectRatio);
 
+    void ApplyPendingCameraPreset(Camera& camera);
+
+    bool IsMainLightEnabled() const;
+    bool IsMetalShaderEnabled() const;
+    bool IsGlassShaderEnabled() const;
+
+    std::vector<GpuTriangle> BuildGpuTriangles() const;
+
 private:
     void ApplyCameraView(Camera& camera);
-
     void BuildDebugHelpers(float aspectRatio);
 
     void SendMaterial(Shader& shader, const Material& material);
@@ -71,6 +80,9 @@ private:
 
     int currentView = 0;
     bool cameraPresetChanged = true;
+
+    bool metalShaderEnabled = true;
+    bool glassShaderEnabled = true;
 
     SceneRenderSettings renderSettings;
 };

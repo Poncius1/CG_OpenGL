@@ -57,6 +57,9 @@
     <ClCompile Include="src\debug\Helpers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\rendering\RaytracingRenderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\rendering\Shader.h">
@@ -101,6 +104,12 @@
     <ClInclude Include="src\scene\SceneConfig.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\rendering\GpuTriangle.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\rendering\RaytracingRenderer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="default.frag">
@@ -119,5 +128,14 @@
     <None Include="models\CornellBox.obj" />
     <None Include="debug.vert" />
     <None Include="debug.frag" />
+    <None Include="src\shaders\debug.frag" />
+    <None Include="src\shaders\debug.vert" />
+    <None Include="src\shaders\default.frag" />
+    <None Include="src\shaders\default.vert" />
+    <None Include="src\shaders\light.frag" />
+    <None Include="src\shaders\light.vert" />
+    <None Include="src\shaders\raytracing.frag" />
+    <None Include="src\shaders\raytracing.vert" />
+    <None Include="x64\assimp-vc145-mt.dll" />
   </ItemGroup>
 </Project>
