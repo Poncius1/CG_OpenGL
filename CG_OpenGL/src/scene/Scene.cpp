@@ -51,7 +51,7 @@ void Scene::Initialize(const std::string& modelPath)
 
     renderSettings.currentMaterial = 0;
     renderSettings.textureMappingEnabled = true;
-    renderSettings.showDebugHelpers = true;
+    renderSettings.showDebugHelpers = false;
     renderSettings.lightingModel = LightingModel::Phong;
 }
 

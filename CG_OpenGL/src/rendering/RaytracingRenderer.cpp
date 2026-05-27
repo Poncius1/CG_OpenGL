@@ -6,6 +6,7 @@
 #include <gtc/type_ptr.hpp>
 
 #include "camera/Camera.h"
+#include "rendering/BvhBuilder.h"
 #include "rendering/Shader.h"
 #include "scene/SceneConfig.h"
 
@@ -16,7 +17,7 @@ void RaytracingRenderer::Initialize()
 
 void RaytracingRenderer::Shutdown()
 {
-    DeleteTriangleBuffer();
+    DeleteSceneBuffers();
     DeleteFullScreenQuad();
 }
 
@@ -24,33 +25,34 @@ void RaytracingRenderer::UploadTriangles(
     const std::vector<GpuTriangle>& triangles
 )
 {
-    DeleteTriangleBuffer();
+    DeleteSceneBuffers();
 
-    triangleCount = static_cast<int>(triangles.size());
-    hasUploadedTriangles = triangleCount > 0;
-
-    if (!hasUploadedTriangles)
+    if (triangles.empty())
     {
         std::cout << "No OBJ triangles uploaded to raytracer.\n";
         return;
     }
 
-    glGenBuffers(1, &triangleSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, triangleSSBO);
+    BvhBuilder::Result bvh = BvhBuilder::Build(triangles, 4);
 
-    glBufferData(
-        GL_SHADER_STORAGE_BUFFER,
-        triangles.size() * sizeof(GpuTriangle),
-        triangles.data(),
-        GL_STATIC_DRAW
-    );
+    triangleCount = static_cast<int>(bvh.triangles.size());
+    bvhNodeCount = static_cast<int>(bvh.nodes.size());
+    hasUploadedScene = triangleCount > 0 && bvhNodeCount > 0;
 
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, triangleSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    if (!hasUploadedScene)
+    {
+        std::cout << "BVH build failed.\n";
+        return;
+    }
+
+    UploadTriangleBuffer(bvh.triangles);
+    UploadBvhBuffer(bvh.nodes);
 
     std::cout << "Uploaded "
         << triangleCount
-        << " triangles to SSBO.\n";
+        << " triangles and "
+        << bvhNodeCount
+        << " BVH nodes to GPU.\n";
 }
 
 void RaytracingRenderer::Render(
@@ -69,6 +71,11 @@ void RaytracingRenderer::Render(
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, triangleSSBO);
     }
 
+    if (bvhSSBO != 0)
+    {
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, bvhSSBO);
+    }
+
     SendCameraUniforms(shader, camera, aspectRatio);
     SendLightUniforms(shader, mainLightEnabled);
     SendSceneUniforms(shader, metalShaderEnabled, glassShaderEnabled);
@@ -85,7 +92,9 @@ void RaytracingRenderer::Render(
 void RaytracingRenderer::CreateFullScreenQuad()
 {
     if (quadVAO != 0)
+    {
         return;
+    }
 
     const float vertices[] =
     {
@@ -149,7 +158,7 @@ void RaytracingRenderer::DeleteFullScreenQuad()
     }
 }
 
-void RaytracingRenderer::DeleteTriangleBuffer()
+void RaytracingRenderer::DeleteSceneBuffers()
 {
     if (triangleSSBO != 0)
     {
@@ -157,8 +166,51 @@ void RaytracingRenderer::DeleteTriangleBuffer()
         triangleSSBO = 0;
     }
 
+    if (bvhSSBO != 0)
+    {
+        glDeleteBuffers(1, &bvhSSBO);
+        bvhSSBO = 0;
+    }
+
     triangleCount = 0;
-    hasUploadedTriangles = false;
+    bvhNodeCount = 0;
+    hasUploadedScene = false;
+}
+
+void RaytracingRenderer::UploadTriangleBuffer(
+    const std::vector<GpuTriangle>& triangles
+)
+{
+    glGenBuffers(1, &triangleSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, triangleSSBO);
+
+    glBufferData(
+        GL_SHADER_STORAGE_BUFFER,
+        triangles.size() * sizeof(GpuTriangle),
+        triangles.data(),
+        GL_STATIC_DRAW
+    );
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, triangleSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+void RaytracingRenderer::UploadBvhBuffer(
+    const std::vector<GpuBvhNode>& nodes
+)
+{
+    glGenBuffers(1, &bvhSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, bvhSSBO);
+
+    glBufferData(
+        GL_SHADER_STORAGE_BUFFER,
+        nodes.size() * sizeof(GpuBvhNode),
+        nodes.data(),
+        GL_STATIC_DRAW
+    );
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, bvhSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
 void RaytracingRenderer::SendCameraUniforms(
@@ -265,63 +317,6 @@ void RaytracingRenderer::SendSceneUniforms(
     bool glassShaderEnabled
 )
 {
-    glUniform3fv(
-        glGetUniformLocation(shader.ID, "boxMin"),
-        1,
-        glm::value_ptr(SceneConfig::BOX_MIN)
-    );
-
-    glUniform3fv(
-        glGetUniformLocation(shader.ID, "boxMax"),
-        1,
-        glm::value_ptr(SceneConfig::BOX_MAX)
-    );
-
-    glUniform3fv(
-        glGetUniformLocation(shader.ID, "metalBoxMin"),
-        1,
-        glm::value_ptr(SceneConfig::METAL_BOX_MIN)
-    );
-
-    glUniform3fv(
-        glGetUniformLocation(shader.ID, "metalBoxMax"),
-        1,
-        glm::value_ptr(SceneConfig::METAL_BOX_MAX)
-    );
-
-    glUniform3fv(
-        glGetUniformLocation(shader.ID, "metalBoxAlbedo"),
-        1,
-        glm::value_ptr(SceneConfig::METAL_BOX_ALBEDO)
-    );
-
-    glUniform1f(
-        glGetUniformLocation(shader.ID, "metalBoxRoughness"),
-        SceneConfig::METAL_BOX_ROUGHNESS
-    );
-
-    glUniform3fv(
-        glGetUniformLocation(shader.ID, "glassSpherePosition"),
-        1,
-        glm::value_ptr(SceneConfig::GLASS_SPHERE_POSITION)
-    );
-
-    glUniform1f(
-        glGetUniformLocation(shader.ID, "glassSphereRadius"),
-        SceneConfig::GLASS_SPHERE_RADIUS
-    );
-
-    glUniform3fv(
-        glGetUniformLocation(shader.ID, "glassSphereAlbedo"),
-        1,
-        glm::value_ptr(SceneConfig::GLASS_SPHERE_ALBEDO)
-    );
-
-    glUniform1f(
-        glGetUniformLocation(shader.ID, "glassSphereIOR"),
-        SceneConfig::GLASS_SPHERE_IOR
-    );
-
     glUniform1i(
         glGetUniformLocation(shader.ID, "metalShaderEnabled"),
         metalShaderEnabled
@@ -338,13 +333,12 @@ void RaytracingRenderer::SendSceneUniforms(
     );
 
     glUniform1i(
-        glGetUniformLocation(shader.ID, "useObjTriangles"),
-        hasUploadedTriangles
+        glGetUniformLocation(shader.ID, "bvhNodeCount"),
+        bvhNodeCount
     );
 
-    // Si el OBJ está cargado, el OBJ reemplaza la escena analítica.
     glUniform1i(
-        glGetUniformLocation(shader.ID, "useAnalyticScene"),
-        !hasUploadedTriangles
+        glGetUniformLocation(shader.ID, "useObjTriangles"),
+        hasUploadedScene
     );
 }

@@ -20,6 +20,7 @@ void Input::RegisterTrackedKeys()
 
         GLFW_KEY_R,
         GLFW_KEY_M,
+        GLFW_KEY_N,
         GLFW_KEY_G,
         GLFW_KEY_T,
         GLFW_KEY_L,
@@ -125,7 +126,7 @@ bool Input::ToggleGlassShaderPressed() const
 
 bool Input::ToggleMaterialPressed() const
 {
-    return IsKeyPressed(GLFW_KEY_M);
+    return IsKeyPressed(GLFW_KEY_N);
 }
 
 bool Input::ToggleTextureMappingPressed() const

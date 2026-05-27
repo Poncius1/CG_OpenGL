@@ -252,17 +252,14 @@ ObjModel::GroupMaterial ObjModel::GetMaterialFromGroupName(
         name.find("sphere") == std::string::npos)
     {
         material.materialType = RAY_MATERIAL_LIGHT;
-        material.albedo = glm::vec3(0.78f, 0.84f, 1.00f);
-        material.emissionStrength = 3.0f;
+        material.albedo = glm::vec3(0.85f, 0.92f, 1.00f);
+        material.emissionStrength = 5.5f;
         material.roughness = 0.0f;
         material.ior = 1.0f;
         return material;
     }
 
-    // --------------------------------------------------
-    // Metallic tall box
-    // IMPORTANT: this must be checked before "sphere/glass".
-    // --------------------------------------------------
+    // Metal
     if (name.find("tallbox") != std::string::npos ||
         name.find("tall_box") != std::string::npos ||
         name.find("metalbox") != std::string::npos ||
@@ -270,25 +267,25 @@ ObjModel::GroupMaterial ObjModel::GetMaterialFromGroupName(
         name.find("box") != std::string::npos)
     {
         material.materialType = RAY_MATERIAL_METAL;
-        material.albedo = glm::vec3(0.86f, 0.82f, 0.72f);
-        material.roughness = 0.035f;
+        material.albedo = glm::vec3(0.46f, 0.48f, 0.50f);
+        material.roughness = 0.20f;
         material.ior = 1.0f;
         material.emissionStrength = 0.0f;
         return material;
     }
 
-    // --------------------------------------------------
+   
     // Glass sphere
-    // --------------------------------------------------
     if (name.find("glasssphere") != std::string::npos ||
         name.find("glass_sphere") != std::string::npos ||
         name.find("sphere") != std::string::npos ||
         name.find("glass") != std::string::npos)
     {
+        // Glass
         material.materialType = RAY_MATERIAL_GLASS;
-        material.albedo = glm::vec3(0.90f, 0.97f, 1.00f);
+        material.albedo = glm::vec3(0.985f, 0.992f, 1.00f);
         material.roughness = 0.0f;
-        material.ior = 1.5f;
+        material.ior = 1.40f;
         material.emissionStrength = 0.0f;
         return material;
     }

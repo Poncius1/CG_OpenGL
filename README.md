@@ -1,96 +1,81 @@
-# CG_OpenGL
+# CG_OpenGL - Cornell Box Raytracing
 
-Renderizador 3D en **OpenGL** para cargar y visualizar modelos `.obj` con iluminación dinámica, materiales procedurales y controles interactivos de cámara.
+Proyecto de Graficación por Computadora desarrollado en C++ y OpenGL.
 
-## Descripción
+El proyecto implementa un visualizador/raytracer para una escena tipo Cornell Box cargada desde un archivo OBJ. Incluye renderizado rasterizado tradicional y un modo de raytracing en shader, con materiales especiales, luces, cámaras y sombras duras.
 
-Este proyecto fue desarrollado como parte de la materia de **Graficación por Computadora**.  
-El objetivo principal es renderizar un modelo 3D desde un archivo OBJ utilizando OpenGL, aplicando iluminación, materiales y controles de interacción en tiempo real.
+## Características principales
 
-El proyecto incluye:
-
-- Carga directa de modelos `.obj`
-- Normalización automática de escala y posición del modelo
-- Iluminación con dos fuentes de luz
-- Luz blanca principal
-- Luz azul secundaria activable
-- Materiales procedurales alternables
-- Cámara libre con teclado y mouse
-- Tres vistas/orientaciones del modelo
-- Organización modular del código
+- Carga de modelos OBJ usando Assimp.
+- Escena Cornell Box cargada desde `models/CornellBox.obj`.
+- Modo rasterizado con iluminación Phong / Blinn-Phong.
+- Modo raytracing en fragment shader.
+- Raytracing acelerado con BVH en GPU.
+- Sombras duras mediante shadow rays.
+- Material metálico tipo acero satinado.
+- Material transparente tipo glass con refracción, Fresnel y highlights.
+- Luz principal toggleable.
+- Luz secundaria tenue siempre activa.
+- Tres presets de cámara.
+- Helpers visuales para luces y cámaras.
+- Controles interactivos.
 
 ## Tecnologías utilizadas
 
 - C++
-- OpenGL
+- OpenGL 4.3
+- GLSL
 - GLFW
 - GLEW
 - GLM
+- Assimp
 - Visual Studio
-
-## Características principales
-
-### Loader OBJ
-
-El proyecto incluye un loader propio para archivos `.obj`, capaz de leer:
-
-- Vértices
-- Normales
-- Coordenadas UV
-- Caras triangulares
-- Caras con más de tres vértices
-
-Además, el modelo se centra y escala automáticamente para evitar problemas de tamaño o posición al cargar diferentes archivos OBJ.
-
-### Iluminación
-
-La escena cuenta con dos luces:
-
-- **Luz blanca:** permanece encendida como iluminación principal.
-- **Luz azul:** puede activarse o desactivarse con el teclado.
-
-### Materiales
-
-Se implementaron dos materiales visuales:
-
-- **Mármol procedural**
-- **Metal azul brillante**
-
-Estos materiales se generan desde el fragment shader usando patrones procedurales.
-
-### Cámara
-
-La cámara permite moverse libremente por la escena y observar el modelo desde distintos ángulos.
 
 ## Controles
 
-| Tecla / Input | Acción |
+| Tecla | Acción |
 |---|---|
-| `W` | Mover cámara hacia adelante |
-| `S` | Mover cámara hacia atrás |
-| `A` | Mover cámara a la izquierda |
-| `D` | Mover cámara a la derecha |
+| `ESC` | Cerrar programa |
+| `R` | Alternar Rasterized / Raytracing |
+| `1` | Cámara preset 1 |
+| `2` | Cámara preset 2 |
+| `3` | Cámara preset 3 |
+| `L` | Encender / apagar luz principal |
+| `M` | Encender / apagar material metálico en raytracing |
+| `G` | Encender / apagar material glass en raytracing |
+| `H` | Mostrar / ocultar helpers de debug |
+| `T` | Encender / apagar texture mapping en rasterizer |
+| `B` | Alternar Phong / Blinn-Phong en rasterizer |
+| `W A S D` | Mover cámara libre |
 | `SPACE` | Subir cámara |
 | `CTRL` | Bajar cámara |
-| `SHIFT` | Aumentar velocidad de movimiento |
+| `SHIFT` | Aumentar velocidad de cámara |
 | Mouse izquierdo | Rotar cámara |
-| `M` | Cambiar material |
-| `L` | Encender / apagar luz azul |
-| `1` | Vista frontal |
-| `2` | Vista lateral izquierda |
-| `3` | Vista lateral derecha |
-| `ESC` | Cerrar programa |
 
-## Estructura del proyecto
+## Modos de render
+
+### Rasterized
+
+Renderizado tradicional con VAO, VBO y EBO.  
+Incluye iluminación Phong / Blinn-Phong y texture mapping.
+
+### Raytracing
+
+Renderizado por raytracing en fragment shader.  
+El shader genera un rayo por pixel, intersecta la escena cargada desde OBJ y calcula iluminación, sombras duras, reflexión metálica y refracción para glass.
+
+El raytracer usa un BVH para acelerar las intersecciones contra los triángulos del OBJ.
+
+## Estructura general
 
 ```txt
 src/
-│
-├── buffers/
-├── camera/
-├── input/
-├── loaders/
-├── rendering/
-├── scene/
-├── third_party/
+├── buffers/       # VAO, VBO, EBO
+├── camera/        # Cámara
+├── debug/         # Helpers visuales
+├── input/         # Controles
+├── loaders/       # Carga de OBJ con Assimp
+├── rendering/     # Shader, Mesh, RaytracingRenderer, BVH
+├── scene/         # Scene, luces, materiales, configuración
+├── shaders/       # GLSL raster/debug/raytracing
 └── Application.cpp

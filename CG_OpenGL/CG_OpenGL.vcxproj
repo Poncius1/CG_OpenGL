@@ -150,6 +150,7 @@
     <ClCompile Include="src\camera\Camera.cpp" />
     <ClCompile Include="src\debug\Helpers.cpp" />
     <ClCompile Include="src\input\Input.cpp" />
+    <ClCompile Include="src\rendering\BvhBuilder.cpp" />
     <ClCompile Include="src\rendering\Mesh.cpp" />
     <ClCompile Include="src\loaders\objModel.cpp" />
     <ClCompile Include="src\rendering\RaytracingRenderer.cpp" />
@@ -165,6 +166,8 @@
     <ClInclude Include="src\camera\Camera.h" />
     <ClInclude Include="src\debug\Helpers.h" />
     <ClInclude Include="src\input\Input.h" />
+    <ClInclude Include="src\rendering\BvhBuilder.h" />
+    <ClInclude Include="src\rendering\GpuBvhNode.h" />
     <ClInclude Include="src\rendering\GpuTriangle.h" />
     <ClInclude Include="src\rendering\RaytracingRenderer.h" />
     <ClInclude Include="src\scene\Light.h" />

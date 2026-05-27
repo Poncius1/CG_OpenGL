@@ -99,11 +99,12 @@ void PrintControls()
     std::cout << "  R     - Toggle Rasterized / Raytracing\n";
     std::cout << "  1/2/3 - Camera presets\n";
     std::cout << "  L     - Toggle main light\n";
-    std::cout << "  M     - Toggle metal shader\n";
-    std::cout << "  G     - Toggle glass shader\n";
+    std::cout << "  M     - Toggle metal material in raytracing\n";
+    std::cout << "  G     - Toggle glass material in raytracing\n";
     std::cout << "  H     - Toggle debug helpers\n";
     std::cout << "  T     - Toggle texture mapping in raster mode\n";
-    std::cout << "  B     - Toggle Phong / Blinn in raster mode\n\n";
+    std::cout << "  B     - Toggle Phong / Blinn in raster mode\n";
+    std::cout << "\n";
 }
 
 void PrintRenderMode(RenderMode mode)

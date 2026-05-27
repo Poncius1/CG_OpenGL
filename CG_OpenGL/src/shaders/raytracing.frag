@@ -4,14 +4,24 @@ out vec4 FragColor;
 
 in vec2 uv;
 
+// ==================================================
+// Constants
+// ==================================================
+
 const float INF = 100000.0;
-const float EPSILON = 0.001;
-const int MAX_BOUNCES = 3;
+const float EPSILON = 0.0015;
+
+const int MAX_BOUNCES = 5;
+const int MAX_BVH_STACK = 64;
 
 const int MATERIAL_DIFFUSE = 0;
 const int MATERIAL_METAL = 1;
 const int MATERIAL_GLASS = 2;
 const int MATERIAL_LIGHT = 3;
+
+// ==================================================
+// Data
+// ==================================================
 
 struct Ray
 {
@@ -54,22 +64,37 @@ struct GpuTriangle
     vec4 n2;
 
     vec4 albedo;
-
-    // x = materialType
-    // y = roughness
-    // z = ior
-    // w = emission
     vec4 materialData;
 };
+
+struct GpuBvhNode
+{
+    vec4 boundsMin;
+    vec4 boundsMax;
+    ivec4 data;
+};
+
+// ==================================================
+// Buffers
+// ==================================================
 
 layout(std430, binding = 0) readonly buffer TriangleBuffer
 {
     GpuTriangle objTriangles[];
 };
 
+layout(std430, binding = 1) readonly buffer BvhBuffer
+{
+    GpuBvhNode bvhNodes[];
+};
+
+// ==================================================
+// Uniforms
+// ==================================================
+
 uniform int objTriangleCount;
+uniform int bvhNodeCount;
 uniform bool useObjTriangles;
-uniform bool useAnalyticScene;
 
 uniform vec3 cameraPosition;
 uniform vec3 cameraForward;
@@ -78,24 +103,15 @@ uniform vec3 cameraUp;
 uniform float cameraFov;
 uniform float aspectRatio;
 
-uniform vec3 boxMin;
-uniform vec3 boxMax;
-
-uniform vec3 metalBoxMin;
-uniform vec3 metalBoxMax;
-uniform vec3 metalBoxAlbedo;
-uniform float metalBoxRoughness;
-
-uniform vec3 glassSpherePosition;
-uniform float glassSphereRadius;
-uniform vec3 glassSphereAlbedo;
-uniform float glassSphereIOR;
-
 uniform bool metalShaderEnabled;
 uniform bool glassShaderEnabled;
 
 uniform Light mainLight;
 uniform Light fillLight;
+
+// ==================================================
+// Utility
+// ==================================================
 
 Hit NoHit()
 {
@@ -107,7 +123,7 @@ Hit NoHit()
     hit.normal = vec3(0.0, 1.0, 0.0);
     hit.albedo = vec3(0.0);
     hit.materialType = MATERIAL_DIFFUSE;
-    hit.roughness = 0.0;
+    hit.roughness = 1.0;
     hit.ior = 1.0;
     hit.emission = 0.0;
 
@@ -120,6 +136,19 @@ void KeepClosest(inout Hit closestHit, Hit candidate)
     {
         closestHit = candidate;
     }
+}
+
+vec3 FaceNormalAgainstRay(vec3 normal, Ray ray)
+{
+    return dot(normal, ray.direction) > 0.0 ? -normal : normal;
+}
+
+float SchlickFresnel(float cosTheta, float ior)
+{
+    float r0 = (1.0 - ior) / (1.0 + ior);
+    r0 *= r0;
+
+    return r0 + (1.0 - r0) * pow(1.0 - cosTheta, 5.0);
 }
 
 Ray GenerateCameraRay(vec2 screenUV)
@@ -167,227 +196,35 @@ Hit CreateHit(
     return hit;
 }
 
-bool IsInsideBounds(vec3 point, vec3 minBounds, vec3 maxBounds)
-{
-    return
-        point.x >= minBounds.x - EPSILON &&
-        point.x <= maxBounds.x + EPSILON &&
-        point.y >= minBounds.y - EPSILON &&
-        point.y <= maxBounds.y + EPSILON &&
-        point.z >= minBounds.z - EPSILON &&
-        point.z <= maxBounds.z + EPSILON;
-}
+// ==================================================
+// Intersections
+// ==================================================
 
-Hit IntersectPlane(
+bool IntersectAabb(
     Ray ray,
-    vec3 pointOnPlane,
-    vec3 planeNormal,
-    vec3 minBounds,
-    vec3 maxBounds,
-    vec3 albedo
+    vec3 boundsMin,
+    vec3 boundsMax,
+    float maxDistance
 )
 {
-    float denominator = dot(ray.direction, planeNormal);
+    vec3 safeDir = ray.direction;
 
-    if (abs(denominator) < 0.00001)
-    {
-        return NoHit();
-    }
+    if (abs(safeDir.x) < 0.00001) safeDir.x = 0.00001;
+    if (abs(safeDir.y) < 0.00001) safeDir.y = 0.00001;
+    if (abs(safeDir.z) < 0.00001) safeDir.z = 0.00001;
 
-    float t = dot(pointOnPlane - ray.origin, planeNormal) / denominator;
+    vec3 invDir = 1.0 / safeDir;
 
-    if (t < EPSILON)
-    {
-        return NoHit();
-    }
-
-    vec3 position = ray.origin + ray.direction * t;
-
-    if (!IsInsideBounds(position, minBounds, maxBounds))
-    {
-        return NoHit();
-    }
-
-    return CreateHit(
-        t,
-        ray,
-        planeNormal,
-        albedo,
-        MATERIAL_DIFFUSE,
-        1.0,
-        1.0,
-        0.0
-    );
-}
-
-Hit IntersectRectangle(
-    Ray ray,
-    vec3 pointOnPlane,
-    vec3 planeNormal,
-    vec3 minBounds,
-    vec3 maxBounds,
-    vec3 albedo,
-    float emission
-)
-{
-    Hit hit = IntersectPlane(
-        ray,
-        pointOnPlane,
-        planeNormal,
-        minBounds,
-        maxBounds,
-        albedo
-    );
-
-    if (!hit.hit)
-    {
-        return hit;
-    }
-
-    hit.materialType = MATERIAL_LIGHT;
-    hit.emission = emission;
-
-    return hit;
-}
-
-Hit IntersectSphere(
-    Ray ray,
-    vec3 center,
-    float radius,
-    vec3 albedo,
-    int materialType,
-    float roughness,
-    float ior
-)
-{
-    vec3 oc = ray.origin - center;
-
-    float a = dot(ray.direction, ray.direction);
-    float halfB = dot(oc, ray.direction);
-    float c = dot(oc, oc) - radius * radius;
-
-    float discriminant = halfB * halfB - a * c;
-
-    if (discriminant < 0.0)
-    {
-        return NoHit();
-    }
-
-    float sqrtD = sqrt(discriminant);
-
-    float t = (-halfB - sqrtD) / a;
-
-    if (t < EPSILON)
-    {
-        t = (-halfB + sqrtD) / a;
-    }
-
-    if (t < EPSILON)
-    {
-        return NoHit();
-    }
-
-    vec3 position = ray.origin + ray.direction * t;
-    vec3 normal = normalize(position - center);
-
-    return CreateHit(
-        t,
-        ray,
-        normal,
-        albedo,
-        materialType,
-        roughness,
-        ior,
-        0.0
-    );
-}
-
-vec3 GetBoxNormal(vec3 position, vec3 minBounds, vec3 maxBounds)
-{
-    vec3 distanceToMin = abs(position - minBounds);
-    vec3 distanceToMax = abs(position - maxBounds);
-
-    float closest = distanceToMin.x;
-    vec3 normal = vec3(-1.0, 0.0, 0.0);
-
-    if (distanceToMax.x < closest)
-    {
-        closest = distanceToMax.x;
-        normal = vec3(1.0, 0.0, 0.0);
-    }
-
-    if (distanceToMin.y < closest)
-    {
-        closest = distanceToMin.y;
-        normal = vec3(0.0, -1.0, 0.0);
-    }
-
-    if (distanceToMax.y < closest)
-    {
-        closest = distanceToMax.y;
-        normal = vec3(0.0, 1.0, 0.0);
-    }
-
-    if (distanceToMin.z < closest)
-    {
-        closest = distanceToMin.z;
-        normal = vec3(0.0, 0.0, -1.0);
-    }
-
-    if (distanceToMax.z < closest)
-    {
-        normal = vec3(0.0, 0.0, 1.0);
-    }
-
-    return normal;
-}
-
-Hit IntersectBox(
-    Ray ray,
-    vec3 minBounds,
-    vec3 maxBounds,
-    vec3 albedo,
-    int materialType,
-    float roughness
-)
-{
-    vec3 safeDirection = ray.direction;
-
-    if (abs(safeDirection.x) < 0.00001) safeDirection.x = 0.00001;
-    if (abs(safeDirection.y) < 0.00001) safeDirection.y = 0.00001;
-    if (abs(safeDirection.z) < 0.00001) safeDirection.z = 0.00001;
-
-    vec3 invDir = 1.0 / safeDirection;
-
-    vec3 t0 = (minBounds - ray.origin) * invDir;
-    vec3 t1 = (maxBounds - ray.origin) * invDir;
+    vec3 t0 = (boundsMin - ray.origin) * invDir;
+    vec3 t1 = (boundsMax - ray.origin) * invDir;
 
     vec3 tMin = min(t0, t1);
     vec3 tMax = max(t0, t1);
 
-    float tNear = max(max(tMin.x, tMin.y), tMin.z);
-    float tFar = min(min(tMax.x, tMax.y), tMax.z);
+    float nearT = max(max(tMin.x, tMin.y), tMin.z);
+    float farT = min(min(tMax.x, tMax.y), tMax.z);
 
-    if (tNear > tFar || tFar < EPSILON)
-    {
-        return NoHit();
-    }
-
-    float t = tNear > EPSILON ? tNear : tFar;
-
-    vec3 position = ray.origin + ray.direction * t;
-    vec3 normal = GetBoxNormal(position, minBounds, maxBounds);
-
-    return CreateHit(
-        t,
-        ray,
-        normal,
-        albedo,
-        materialType,
-        roughness,
-        1.0,
-        0.0
-    );
+    return farT >= max(nearT, 0.0) && nearT < maxDistance;
 }
 
 Hit IntersectTriangle(Ray ray, GpuTriangle triangle)
@@ -432,172 +269,90 @@ Hit IntersectTriangle(Ray ray, GpuTriangle triangle)
         return NoHit();
     }
 
-    vec3 n0 = triangle.n0.xyz;
-    vec3 n1 = triangle.n1.xyz;
-    vec3 n2 = triangle.n2.xyz;
+    vec3 normal = normalize(
+        triangle.n0.xyz * (1.0 - u - v) +
+        triangle.n1.xyz * u +
+        triangle.n2.xyz * v
+    );
 
-    vec3 normal = normalize(n0 * (1.0 - u - v) + n1 * u + n2 * v);
-
-    int materialType = int(round(triangle.materialData.x));
-    float roughness = triangle.materialData.y;
-    float ior = triangle.materialData.z;
-    float emission = triangle.materialData.w;
+    vec4 data = triangle.materialData;
 
     return CreateHit(
         t,
         ray,
         normal,
         triangle.albedo.rgb,
-        materialType,
-        roughness,
-        ior,
-        emission
+        int(round(data.x)),
+        data.y,
+        data.z,
+        data.w
     );
-}
-
-Hit IntersectObjTriangles(Ray ray)
-{
-    Hit closestHit = NoHit();
-
-    if (!useObjTriangles)
-    {
-        return closestHit;
-    }
-
-    for (int i = 0; i < objTriangleCount; ++i)
-    {
-        KeepClosest(
-            closestHit,
-            IntersectTriangle(ray, objTriangles[i])
-        );
-    }
-
-    return closestHit;
-}
-
-Hit IntersectCornellBox(Ray ray)
-{
-    Hit closestHit = NoHit();
-
-    vec3 whiteWall = vec3(0.78, 0.76, 0.70);
-    vec3 redWall = vec3(0.65, 0.05, 0.04);
-    vec3 greenWall = vec3(0.08, 0.45, 0.10);
-
-    KeepClosest(
-        closestHit,
-        IntersectPlane(
-            ray,
-            vec3(0.0, boxMin.y, 0.0),
-            vec3(0.0, 1.0, 0.0),
-            boxMin,
-            boxMax,
-            whiteWall
-        )
-    );
-
-    KeepClosest(
-        closestHit,
-        IntersectPlane(
-            ray,
-            vec3(0.0, boxMax.y, 0.0),
-            vec3(0.0, -1.0, 0.0),
-            boxMin,
-            boxMax,
-            whiteWall
-        )
-    );
-
-    KeepClosest(
-        closestHit,
-        IntersectPlane(
-            ray,
-            vec3(0.0, 0.0, boxMin.z),
-            vec3(0.0, 0.0, 1.0),
-            boxMin,
-            boxMax,
-            whiteWall
-        )
-    );
-
-    KeepClosest(
-        closestHit,
-        IntersectPlane(
-            ray,
-            vec3(boxMin.x, 0.0, 0.0),
-            vec3(1.0, 0.0, 0.0),
-            boxMin,
-            boxMax,
-            redWall
-        )
-    );
-
-    KeepClosest(
-        closestHit,
-        IntersectPlane(
-            ray,
-            vec3(boxMax.x, 0.0, 0.0),
-            vec3(-1.0, 0.0, 0.0),
-            boxMin,
-            boxMax,
-            greenWall
-        )
-    );
-
-    // Panel visual de luz en el techo.
-    KeepClosest(
-        closestHit,
-        IntersectRectangle(
-            ray,
-            vec3(0.0, boxMax.y - 0.002, -0.10),
-            vec3(0.0, -1.0, 0.0),
-            vec3(-0.28, boxMax.y - 0.01, -0.34),
-            vec3( 0.28, boxMax.y + 0.01,  0.14),
-            vec3(0.78, 0.84, 1.0),
-            2.5
-        )
-    );
-
-    return closestHit;
 }
 
 Hit TraceScene(Ray ray)
 {
     Hit closestHit = NoHit();
 
-    if (useAnalyticScene)
+    if (!useObjTriangles || bvhNodeCount <= 0)
     {
-        KeepClosest(closestHit, IntersectCornellBox(ray));
-
-        KeepClosest(
-            closestHit,
-            IntersectBox(
-                ray,
-                metalBoxMin,
-                metalBoxMax,
-                metalBoxAlbedo,
-                MATERIAL_METAL,
-                metalBoxRoughness
-            )
-        );
-
-        KeepClosest(
-            closestHit,
-            IntersectSphere(
-                ray,
-                glassSpherePosition,
-                glassSphereRadius,
-                glassSphereAlbedo,
-                MATERIAL_GLASS,
-                0.0,
-                glassSphereIOR
-            )
-        );
+        return closestHit;
     }
 
-    KeepClosest(closestHit, IntersectObjTriangles(ray));
+    int stack[MAX_BVH_STACK];
+    int stackSize = 1;
+    stack[0] = 0;
+
+    while (stackSize > 0)
+    {
+        int nodeIndex = stack[--stackSize];
+
+        if (nodeIndex < 0 || nodeIndex >= bvhNodeCount)
+        {
+            continue;
+        }
+
+        GpuBvhNode node = bvhNodes[nodeIndex];
+
+        if (!IntersectAabb(ray, node.boundsMin.xyz, node.boundsMax.xyz, closestHit.t))
+        {
+            continue;
+        }
+
+        int triangleCount = node.data.w;
+
+        if (triangleCount > 0)
+        {
+            int firstTriangle = node.data.z;
+
+            for (int i = 0; i < triangleCount; ++i)
+            {
+                int triangleIndex = firstTriangle + i;
+
+                if (triangleIndex < objTriangleCount)
+                {
+                    KeepClosest(
+                        closestHit,
+                        IntersectTriangle(ray, objTriangles[triangleIndex])
+                    );
+                }
+            }
+
+            continue;
+        }
+
+        if (stackSize + 2 <= MAX_BVH_STACK)
+        {
+            stack[stackSize++] = node.data.x;
+            stack[stackSize++] = node.data.y;
+        }
+    }
 
     return closestHit;
 }
+
+// ==================================================
+// Shadows
+// ==================================================
 
 bool IsOccluded(vec3 origin, vec3 normal, vec3 lightPosition)
 {
@@ -605,7 +360,7 @@ bool IsOccluded(vec3 origin, vec3 normal, vec3 lightPosition)
     float lightDistance = length(toLight);
 
     Ray shadowRay;
-    shadowRay.origin = origin + normal * EPSILON;
+    shadowRay.origin = origin + normal * EPSILON * 2.0;
     shadowRay.direction = normalize(toLight);
 
     Hit shadowHit = TraceScene(shadowRay);
@@ -615,21 +370,12 @@ bool IsOccluded(vec3 origin, vec3 normal, vec3 lightPosition)
         return false;
     }
 
-    // La luz visible no debe bloquearse a sí misma.
-    if (shadowHit.materialType == MATERIAL_LIGHT)
-    {
-        return false;
-    }
-
-    // El vidrio no debería comportarse como sombra negra sólida.
-    // Para esta versión simple, dejamos que la luz lo atraviese.
-    if (shadowHit.materialType == MATERIAL_GLASS)
-    {
-        return false;
-    }
-
-    return true;
+    return shadowHit.materialType != MATERIAL_LIGHT;
 }
+
+// ==================================================
+// Lighting
+// ==================================================
 
 vec3 ShadeLight(Light light, Hit hit)
 {
@@ -638,18 +384,15 @@ vec3 ShadeLight(Light light, Hit hit)
         return vec3(0.0);
     }
 
+    vec3 N = normalize(hit.normal);
     vec3 toLight = light.position - hit.position;
+
     float distanceToLight = length(toLight);
-    vec3 lightDir = normalize(toLight);
+    vec3 L = normalize(toLight);
 
-    float ndotl = max(dot(hit.normal, lightDir), 0.0);
+    float ndotl = max(dot(N, L), 0.0);
 
-    if (ndotl <= 0.0)
-    {
-        return vec3(0.0);
-    }
-
-    if (IsOccluded(hit.position, hit.normal, light.position))
+    if (ndotl <= 0.0 || IsOccluded(hit.position, N, light.position))
     {
         return vec3(0.0);
     }
@@ -657,8 +400,8 @@ vec3 ShadeLight(Light light, Hit hit)
     float attenuation = 1.0 /
     (
         1.0 +
-        0.15 * distanceToLight +
-        0.05 * distanceToLight * distanceToLight
+        0.08 * distanceToLight +
+        0.02 * distanceToLight * distanceToLight
     );
 
     vec3 radiance = light.color.rgb * light.intensity * attenuation;
@@ -678,18 +421,177 @@ vec3 ShadeDirect(Hit hit)
     color += ShadeLight(mainLight, hit);
     color += ShadeLight(fillLight, hit);
 
-    color += hit.albedo * 0.025;
+    // Rebote ambiental falso, bajo y cálido.
+    color += hit.albedo * vec3(0.012, 0.009, 0.006);
 
     return color;
 }
 
-float Schlick(float cosine, float ior)
+vec3 SampleFirstHitColor(Ray ray)
 {
-    float r0 = (1.0 - ior) / (1.0 + ior);
-    r0 = r0 * r0;
+    Hit hit = TraceScene(ray);
 
-    return r0 + (1.0 - r0) * pow(1.0 - cosine, 5.0);
+    if (!hit.hit)
+    {
+        return vec3(0.0);
+    }
+
+    hit.normal = FaceNormalAgainstRay(hit.normal, ray);
+
+    if (hit.materialType == MATERIAL_LIGHT)
+    {
+        return hit.albedo * hit.emission;
+    }
+
+    return ShadeDirect(hit);
 }
+
+// ==================================================
+// Specular helpers
+// ==================================================
+
+vec3 ComputeSpecular(
+    Hit hit,
+    Ray ray,
+    float mainPower,
+    float fillPower,
+    float mainStrength,
+    float fillStrength
+)
+{
+    vec3 result = vec3(0.0);
+
+    vec3 N = normalize(hit.normal);
+    vec3 V = normalize(-ray.direction);
+
+    if (mainLight.enabled)
+    {
+        vec3 L = normalize(mainLight.position - hit.position);
+        vec3 H = normalize(L + V);
+
+        float spec = pow(max(dot(N, H), 0.0), mainPower);
+
+        result +=
+            mainLight.color.rgb *
+            mainLight.intensity *
+            spec *
+            mainStrength;
+    }
+
+    if (fillLight.enabled)
+    {
+        vec3 L = normalize(fillLight.position - hit.position);
+        vec3 H = normalize(L + V);
+
+        float spec = pow(max(dot(N, H), 0.0), fillPower);
+
+        result +=
+            fillLight.color.rgb *
+            fillLight.intensity *
+            spec *
+            fillStrength;
+    }
+
+    return result;
+}
+
+// ==================================================
+// Materials
+// ==================================================
+
+vec3 TraceMetal(
+    Ray ray,
+    Hit hit
+)
+{
+    // Acero satinado: base difusa + brillo fuerte + reflejo leve.
+    vec3 base = ShadeDirect(hit) * 0.55;
+
+    vec3 specular = ComputeSpecular(
+        hit,
+        ray,
+        96.0,
+        48.0,
+        0.20,
+        0.05
+    );
+
+    vec3 reflectedDirection = normalize(reflect(ray.direction, hit.normal));
+
+    Ray reflectionRay;
+    reflectionRay.origin = hit.position + hit.normal * EPSILON * 2.0;
+    reflectionRay.direction = reflectedDirection;
+
+    vec3 reflectionColor = SampleFirstHitColor(reflectionRay);
+
+    // Reflejo muy reducido para evitar aspecto de espejo.
+    vec3 softReflection = reflectionColor * 0.08;
+
+    return base + specular + softReflection;
+}
+
+vec3 TraceGlass(
+    inout Ray ray,
+    Hit hit,
+    inout vec3 throughput
+)
+{
+    vec3 N = normalize(hit.normal);
+
+    bool frontFace = dot(ray.direction, N) < 0.0;
+    vec3 normal = frontFace ? N : -N;
+
+    float eta = frontFace ? (1.0 / hit.ior) : hit.ior;
+
+    float cosTheta = min(dot(-ray.direction, normal), 1.0);
+    float sinTheta = sqrt(max(0.0, 1.0 - cosTheta * cosTheta));
+
+    bool cannotRefract = eta * sinTheta > 1.0;
+
+    vec3 reflectedDirection = normalize(reflect(ray.direction, normal));
+    vec3 refractedDirection = normalize(refract(ray.direction, normal, eta));
+
+    float fresnel = SchlickFresnel(cosTheta, hit.ior);
+    fresnel = clamp(fresnel * 1.8, 0.04, 0.85);
+
+    Ray reflectionRay;
+    reflectionRay.origin = hit.position + normal * EPSILON * 2.0;
+    reflectionRay.direction = reflectedDirection;
+
+    vec3 reflectionColor = SampleFirstHitColor(reflectionRay);
+
+    vec3 highlight = ComputeSpecular(
+        hit,
+        ray,
+        180.0,
+        90.0,
+        0.10,
+        0.035
+    );
+
+    // Vidrio claro con borde Fresnel y reflejo superficial.
+    vec3 surfaceGlass =
+        reflectionColor * fresnel * 0.65 +
+        highlight +
+        vec3(0.70, 0.85, 1.0) * fresnel * 0.035;
+
+    vec3 nextDirection =
+        cannotRefract
+        ? reflectedDirection
+        : refractedDirection;
+
+    ray.origin = hit.position + nextDirection * EPSILON * 2.0;
+    ray.direction = nextDirection;
+
+    // Conserva energía para que la esfera no se vea gris/opaca.
+    throughput *= mix(hit.albedo, vec3(1.0), 0.985);
+
+    return surfaceGlass;
+}
+
+// ==================================================
+// Ray loop
+// ==================================================
 
 vec3 TraceRay(Ray ray)
 {
@@ -705,8 +607,7 @@ vec3 TraceRay(Ray ray)
             break;
         }
 
-        bool useMetal = hit.materialType == MATERIAL_METAL && metalShaderEnabled;
-        bool useGlass = hit.materialType == MATERIAL_GLASS && glassShaderEnabled;
+        hit.normal = FaceNormalAgainstRay(hit.normal, ray);
 
         if (hit.materialType == MATERIAL_LIGHT)
         {
@@ -714,69 +615,50 @@ vec3 TraceRay(Ray ray)
             break;
         }
 
-        if (!useMetal && !useGlass)
-        {
-            finalColor += throughput * ShadeDirect(hit);
-            break;
-        }
+        bool useMetal =
+            hit.materialType == MATERIAL_METAL &&
+            metalShaderEnabled;
+
+        bool useGlass =
+            hit.materialType == MATERIAL_GLASS &&
+            glassShaderEnabled;
 
         if (useMetal)
         {
-            // Pequeña contribución directa para que el metal no quede negro.
-            finalColor += throughput * ShadeDirect(hit) * 0.10;
-
-            vec3 reflectedDirection = reflect(ray.direction, hit.normal);
-
-            ray.origin = hit.position + hit.normal * EPSILON;
-            ray.direction = normalize(reflectedDirection);
-
-            // El metal conserva más energía que un difuso normal.
-            throughput *= mix(hit.albedo, vec3(1.0), 0.15);
-
-            continue;
+            finalColor += throughput * TraceMetal(ray, hit);
+            break;
         }
 
         if (useGlass)
         {
-            finalColor += throughput * ShadeDirect(hit) * 0.03;
-
-            bool frontFace = dot(ray.direction, hit.normal) < 0.0;
-            vec3 normal = frontFace ? hit.normal : -hit.normal;
-
-            float refractionRatio = frontFace ? 1.0 / hit.ior : hit.ior;
-
-            float cosTheta = min(dot(-ray.direction, normal), 1.0);
-            float sinTheta = sqrt(max(0.0, 1.0 - cosTheta * cosTheta));
-
-            bool cannotRefract = refractionRatio * sinTheta > 1.0;
-            float reflectance = Schlick(cosTheta, hit.ior);
-
-            vec3 nextDirection;
-
-            if (cannotRefract || reflectance > 0.45)
-            {
-                nextDirection = reflect(ray.direction, normal);
-            }
-            else
-            {
-                nextDirection = refract(ray.direction, normal, refractionRatio);
-            }
-
-            ray.origin = hit.position + nextDirection * EPSILON;
-            ray.direction = normalize(nextDirection);
-
-            throughput *= mix(hit.albedo, vec3(1.0), 0.65);
+            finalColor += throughput * TraceGlass(ray, hit, throughput);
             continue;
         }
+
+        finalColor += throughput * ShadeDirect(hit);
+        break;
     }
 
     return finalColor;
 }
 
+// ==================================================
+// Post process
+// ==================================================
+
 vec3 ToneMap(vec3 color)
 {
     return color / (color + vec3(1.0));
 }
+
+vec3 GammaCorrect(vec3 color)
+{
+    return pow(clamp(color, 0.0, 1.0), vec3(1.0 / 2.2));
+}
+
+// ==================================================
+// Main
+// ==================================================
 
 void main()
 {
@@ -785,7 +667,7 @@ void main()
     vec3 color = TraceRay(ray);
 
     color = ToneMap(color);
-    color = pow(clamp(color, 0.0, 1.0), vec3(1.0 / 2.2));
+    color = GammaCorrect(color);
 
     FragColor = vec4(color, 1.0);
 }

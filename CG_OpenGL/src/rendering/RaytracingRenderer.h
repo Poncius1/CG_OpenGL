@@ -4,6 +4,7 @@
 
 #include <GL/glew.h>
 
+#include "rendering/GpuBvhNode.h"
 #include "rendering/GpuTriangle.h"
 
 class Shader;
@@ -33,7 +34,10 @@ private:
     void CreateFullScreenQuad();
     void DeleteFullScreenQuad();
 
-    void DeleteTriangleBuffer();
+    void DeleteSceneBuffers();
+
+    void UploadTriangleBuffer(const std::vector<GpuTriangle>& triangles);
+    void UploadBvhBuffer(const std::vector<GpuBvhNode>& nodes);
 
     void SendCameraUniforms(
         Shader& shader,
@@ -57,7 +61,10 @@ private:
     GLuint quadVBO = 0;
 
     GLuint triangleSSBO = 0;
+    GLuint bvhSSBO = 0;
 
     int triangleCount = 0;
-    bool hasUploadedTriangles = false;
+    int bvhNodeCount = 0;
+
+    bool hasUploadedScene = false;
 };

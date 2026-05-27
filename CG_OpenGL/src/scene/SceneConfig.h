@@ -6,7 +6,7 @@
 
 namespace SceneConfig
 {
-    constexpr float CAMERA_FOV = 45.0f;
+    constexpr float CAMERA_FOV = 48.0f;
     constexpr float CAMERA_NEAR = 0.1f;
     constexpr float CAMERA_FAR = 100.0f;
 
@@ -15,20 +15,16 @@ namespace SceneConfig
     inline const glm::vec3 BOX_MIN = glm::vec3(-1.0f, -1.0f, -1.0f);
     inline const glm::vec3 BOX_MAX = glm::vec3(1.0f, 1.0f, 1.0f);
 
-    // --------------------------------------------------
-// Raytracing analytic objects
-// --------------------------------------------------
-
+    // Estos valores eran para la escena analítica.
+    // Se conservan por compatibilidad, pero el raytracer actual usa el OBJ.
     inline const glm::vec3 METAL_BOX_MIN = glm::vec3(-0.70f, -1.00f, -0.55f);
     inline const glm::vec3 METAL_BOX_MAX = glm::vec3(-0.22f, 0.35f, -0.05f);
 
     inline const glm::vec3 METAL_BOX_ALBEDO = glm::vec3(0.86f, 0.82f, 0.72f);
     constexpr float METAL_BOX_ROUGHNESS = 0.04f;
 
-    inline const glm::vec3 GLASS_SPHERE_ALBEDO = glm::vec3(0.90f, 0.97f, 1.00f);
-    constexpr float GLASS_SPHERE_IOR = 1.5f;
-
-
+    inline const glm::vec3 GLASS_SPHERE_ALBEDO = glm::vec3(0.98f, 0.995f, 1.00f);
+    constexpr float GLASS_SPHERE_IOR = 1.35f;
 
     struct SceneLight
     {
@@ -49,21 +45,21 @@ namespace SceneConfig
     {
         "mainLight",
 
-        // Luz principal cerca del techo, ligeramente hacia el frente.
-        glm::vec3(0.0f, 0.92f, 0.10f),
+        // Cerca del panel del techo.
+        glm::vec3(0.0f, 0.70f, 0.02f),
 
-        // Blanco con tinte azul.
-        glm::vec4(0.78f, 0.84f, 1.00f, 1.0f),
+        // Blanco ligeramente azul
+        glm::vec4(0.85f, 0.92f, 1.00f, 1.0f),
 
-        // Suficiente para iluminar sin quemar demasiado.
-        3.2f,
+        // Intensidad moderada. 
+        1.5f,
 
         true,
 
-        // Toggleable.
+      
         true,
 
-        0.12f,
+        0.10f,
         glm::vec3(0.70f, 0.85f, 1.0f)
     };
 
@@ -71,22 +67,21 @@ namespace SceneConfig
     {
         "fillLight",
 
-        // Luz tenue fuera de la caja, al frente e izquierda.
-        glm::vec3(-1.35f, 0.35f, 2.35f),
+        // Luz tenue fuera de la caja, al frente.
+        glm::vec3(0.0f, 0.15f, 1.50f),
 
-        // Azul más suave.
-        glm::vec4(0.25f, 0.38f, 1.00f, 1.0f),
+        // Cálida
+        glm::vec4(0.87f, 0.31f, 0.10f, 1.0f),
 
-        // Muy tenue, siempre encendida.
-        0.55f,
+        0.3f,
 
         true,
 
-        // No se apaga.
+        // Siempre encendida.
         false,
 
         0.10f,
-        glm::vec3(0.30f, 0.45f, 0.90f)
+        glm::vec3(1.0f, 0.78f, 0.45f)
     };
 
     inline const std::array<SceneLight, 2> LIGHTS =
@@ -112,9 +107,10 @@ namespace SceneConfig
         {
             0,
 
-            // Cámara frontal. Buena para comparar raster vs raytracing.
-            glm::vec3(0.0f, 0.10f, 3.15f),
-            glm::vec3(0.0f, 0.00f, 0.0f),
+            // Vista principal estilo Cornell Box.
+            // Un poco más centrada y menos abierta que tu configuración actual.
+            glm::vec3(0.0f, 0.02f, 2.45f),
+            glm::vec3(0.0f, -0.04f, -0.12f),
 
             WORLD_UP,
             glm::vec3(1.0f, 1.0f, 0.0f)
@@ -124,9 +120,9 @@ namespace SceneConfig
         {
             1,
 
-            // Cámara 3/4. Mejor para apreciar metal, vidrio y profundidad.
-            glm::vec3(2.25f, 0.45f, 2.85f),
-            glm::vec3(0.0f, 0.00f, -0.05f),
+            // Vista 3/4 derecha para apreciar profundidad, vidrio y metal.
+            glm::vec3(1.75f, 0.25f, 2.35f),
+            glm::vec3(0.0f, -0.05f, -0.15f),
 
             WORLD_UP,
             glm::vec3(1.0f, 0.5f, 0.0f)
@@ -136,9 +132,9 @@ namespace SceneConfig
         {
             2,
 
-            // Cámara lateral/interior. Ayuda a ver sombras y refracción.
-            glm::vec3(-2.15f, 0.35f, 2.25f),
-            glm::vec3(-0.15f, -0.05f, -0.05f),
+            // Vista 3/4 izquierda para ver sombras y pared roja.
+            glm::vec3(-1.75f, 0.25f, 2.35f),
+            glm::vec3(-0.05f, -0.05f, -0.15f),
 
             WORLD_UP,
             glm::vec3(0.0f, 1.0f, 1.0f)
