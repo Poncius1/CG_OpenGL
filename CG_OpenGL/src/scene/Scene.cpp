@@ -311,8 +311,12 @@ void Scene::SendRenderSettings(Shader& shader)
         glGetUniformLocation(shader.ID, "lightingModel"),
         static_cast<int>(renderSettings.lightingModel)
     );
-}
 
+    glUniform1i(
+        glGetUniformLocation(shader.ID, "modelHasUVs"),
+        model && model->HasTextureCoordinates()
+    );
+}
 glm::mat4 Scene::GetObjModelMatrix() const
 {
     glm::mat4 matrix = glm::mat4(1.0f);

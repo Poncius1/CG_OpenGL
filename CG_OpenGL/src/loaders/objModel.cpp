@@ -19,6 +19,9 @@ ObjModel::ObjModel(const std::string& path)
 
 bool ObjModel::LoadWithAssimp(const std::string& path)
 {
+    hasTextureCoordinates = false;
+    triangles.clear();
+
     Assimp::Importer importer;
 
     const aiScene* scene = importer.ReadFile(
@@ -75,6 +78,17 @@ bool ObjModel::LoadWithAssimp(const std::string& path)
     std::cout << "Indices: " << indices.size() << std::endl;
     std::cout << "Triangulos para raytracing: " << triangles.size() << std::endl;
 
+    if (hasTextureCoordinates)
+    {
+        std::cout << "Modelo con UVs originales. Se usaran texCoords del archivo."
+            << std::endl;
+    }
+    else
+    {
+        std::cout << "Modelo sin UVs. Se usara triplanar mapping en el shader."
+            << std::endl;
+    }
+
     return true;
 }
 
@@ -124,6 +138,12 @@ void ObjModel::ProcessMesh(
 )
 {
     const GLuint baseVertex = static_cast<GLuint>(vertices.size());
+    const bool meshHasUVs = assimpMesh->HasTextureCoords(0);
+
+    if (meshHasUVs)
+    {
+        hasTextureCoordinates = true;
+    }
 
     for (unsigned int i = 0; i < assimpMesh->mNumVertices; ++i)
     {
@@ -147,14 +167,16 @@ void ObjModel::ProcessMesh(
             );
 
             if (glm::length(vertex.normal) > 0.0f)
+            {
                 vertex.normal = glm::normalize(vertex.normal);
+            }
         }
         else
         {
             vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
         }
 
-        if (assimpMesh->HasTextureCoords(0))
+        if (meshHasUVs)
         {
             vertex.texUV = glm::vec2(
                 assimpMesh->mTextureCoords[0][i].x,
@@ -163,6 +185,8 @@ void ObjModel::ProcessMesh(
         }
         else
         {
+            // El modelo no trae UVs. 
+            // usará triplanar mapping
             vertex.texUV = glm::vec2(0.0f);
         }
 
@@ -187,7 +211,9 @@ void ObjModel::ProcessMesh(
         const aiFace& face = assimpMesh->mFaces[i];
 
         if (face.mNumIndices != 3)
+        {
             continue;
+        }
 
         GLuint i0 = baseVertex + face.mIndices[0];
         GLuint i1 = baseVertex + face.mIndices[1];
@@ -198,6 +224,7 @@ void ObjModel::ProcessMesh(
         indices.push_back(i2);
 
         RayTriangle triangle{};
+
         triangle.v0 = vertices[i0].position;
         triangle.v1 = vertices[i1].position;
         triangle.v2 = vertices[i2].position;
@@ -223,7 +250,9 @@ void ObjModel::ComputeNormalizationMatrix(
     float scale = 1.0f;
 
     if (largestAxis > 0.0f)
+    {
         scale = 1.8f / largestAxis;
+    }
 
     normalizationMatrix = glm::mat4(1.0f);
     normalizationMatrix = glm::scale(normalizationMatrix, glm::vec3(scale));
@@ -256,4 +285,9 @@ void ObjModel::Draw(
 const std::vector<RayTriangle>& ObjModel::GetTriangles() const
 {
     return triangles;
+}
+
+bool ObjModel::HasTextureCoordinates() const
+{
+    return hasTextureCoordinates;
 }

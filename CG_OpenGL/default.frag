@@ -30,9 +30,8 @@ uniform Light fillLight;
 
 uniform vec3 camPos;
 
-// false = sin textura procedural
-// true  = con textura procedural basada en UVs
 uniform bool textureMappingEnabled;
+uniform bool modelHasUVs;
 
 // 0 = Phong
 // 1 = Blinn-Phong
@@ -40,7 +39,7 @@ uniform int lightingModel;
 
 vec3 GetCheckerTexture(vec2 uv)
 {
-    float scale = 12.0;
+    float scale = 8.0;
 
     float checker =
         mod(floor(uv.x * scale) + floor(uv.y * scale), 2.0);
@@ -49,6 +48,24 @@ vec3 GetCheckerTexture(vec2 uv)
     vec3 colorB = vec3(0.18, 0.18, 0.20);
 
     return mix(colorA, colorB, checker);
+}
+
+vec3 GetTriplanarChecker(vec3 position, vec3 normal)
+{
+    float scale = 2.0;
+
+    vec3 blend = abs(normal);
+    blend = max(blend, vec3(0.0001));
+    blend /= (blend.x + blend.y + blend.z);
+
+    vec3 xProjection = GetCheckerTexture(position.zy * scale);
+    vec3 yProjection = GetCheckerTexture(position.xz * scale);
+    vec3 zProjection = GetCheckerTexture(position.xy * scale);
+
+    return
+        xProjection * blend.x +
+        yProjection * blend.y +
+        zProjection * blend.z;
 }
 
 vec3 CalculateLight(
@@ -83,8 +100,6 @@ vec3 CalculateLight(
     {
         if (lightingModel == 0)
         {
-            // Phong:
-            // usa el vector reflejado de la luz.
             vec3 reflectDir = reflect(-lightDir, normal);
 
             specularFactor = pow(
@@ -94,8 +109,6 @@ vec3 CalculateLight(
         }
         else
         {
-            // Blinn-Phong:
-            // usa el halfway vector entre luz y cámara.
             vec3 halfwayDir = normalize(lightDir + viewDir);
 
             specularFactor = pow(
@@ -135,22 +148,26 @@ void main()
     vec3 normal = normalize(Normal);
     vec3 viewDir = normalize(camPos - crntPos);
 
-    // Ayuda con modelos exportados con normales hacia afuera
-    // cuando se observan superficies internas.
     if (dot(normal, viewDir) < 0.0)
     {
         normal = -normal;
     }
 
-    // Color base:
-    // - color viene del loader/OBJ.
-    // - Si tu modelo no trae colores, normalmente será vec3(1.0).
     vec3 baseColor = color;
 
-    // Si la textura procedural está activa, se combina con el color base.
     if (textureMappingEnabled)
     {
-        vec3 checkerColor = GetCheckerTexture(texCoord);
+        vec3 checkerColor;
+
+        if (modelHasUVs)
+        {
+            checkerColor = GetCheckerTexture(texCoord);
+        }
+        else
+        {
+            checkerColor = GetTriplanarChecker(crntPos, normal);
+        }
+
         baseColor *= checkerColor;
     }
 
@@ -159,10 +176,7 @@ void main()
     finalColor += CalculateLight(mainLight, baseColor, normal, viewDir);
     finalColor += CalculateLight(fillLight, baseColor, normal, viewDir);
 
-    // Evita valores fuera de rango antes de gamma.
     finalColor = clamp(finalColor, 0.0, 1.0);
-
-    // Gamma correction simple para que el resultado no se vea tan oscuro.
     finalColor = pow(finalColor, vec3(1.0 / 2.2));
 
     FragColor = vec4(finalColor, 1.0);

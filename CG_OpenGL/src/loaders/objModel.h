@@ -36,6 +36,8 @@ public:
 
     const std::vector<RayTriangle>& GetTriangles() const;
 
+    bool HasTextureCoordinates() const;
+
 private:
     bool LoadWithAssimp(const std::string& path);
 
@@ -68,4 +70,8 @@ private:
     glm::mat4 normalizationMatrix = glm::mat4(1.0f);
 
     std::vector<RayTriangle> triangles;
+
+    // Si el modelo trae UVs, se usan en el shader.
+    // Si no trae UVs, el shader usa triplanar mapping.
+    bool hasTextureCoordinates = false;
 };
