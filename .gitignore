@@ -361,3 +361,15 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Keep vendored third-party dependencies
+!Dependencies/
+!Dependencies/**/
+!Dependencies/**/*.lib
+!Dependencies/**/*.dll
+!Dependencies/**/*.h
+!Dependencies/**/*.hpp
+!Dependencies/**/*.c
+!Dependencies/**/*.cpp
+!Dependencies/**/*.txt
+!Dependencies/**/*.md
