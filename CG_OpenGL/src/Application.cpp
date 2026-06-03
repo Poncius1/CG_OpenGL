@@ -87,10 +87,14 @@ void PrintTrajectoryControls()
     std::cout << "B : Toggle light-biased paths\n";
     std::cout << "P : Toggle Pareto Q-Learning paths\n";
     std::cout << "F : Toggle full path / first segment only\n";
+    std::cout << "O : Cycle color mode: outcome / cost / quality / bounce / method\n";
+    std::cout << "T : Cycle filter: all / only successful / only failed\n";
     std::cout << "J : Reload trajectory JSON\n";
     std::cout << "+ : Increase visible paths\n";
     std::cout << "- : Decrease visible paths\n";
-    std::cout << "==========================================\n\n";
+    std::cout << "H : Print this help\n";
+    std::cout << "==========================================\n";
+    std::cout << "Suggested presentation mode: P=ON, R/B optional, O=Outcome, T=Success only.\n\n";
 }
 
 bool LoadTrajectories(
@@ -190,6 +194,11 @@ int main()
             glfwSetWindowShouldClose(window, true);
         }
 
+        if (IsKeyPressedOnce(window, GLFW_KEY_H))
+        {
+            PrintTrajectoryControls();
+        }
+
         if (IsKeyPressedOnce(window, GLFW_KEY_R))
         {
             trajectoryRenderer.ToggleRandom();
@@ -224,6 +233,16 @@ int main()
             std::cout << "First segment mode: "
                 << (trajectoryRenderer.IsFirstSegmentMode() ? "ON" : "OFF")
                 << std::endl;
+        }
+
+        if (IsKeyPressedOnce(window, GLFW_KEY_O))
+        {
+            trajectoryRenderer.NextColorMode();
+        }
+
+        if (IsKeyPressedOnce(window, GLFW_KEY_T))
+        {
+            trajectoryRenderer.NextFilterMode();
         }
 
         if (IsKeyPressedOnce(window, GLFW_KEY_J))
