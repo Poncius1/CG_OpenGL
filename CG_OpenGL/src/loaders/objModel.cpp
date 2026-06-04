@@ -9,16 +9,21 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 
-static std::string ToLower(std::string text)
+namespace
 {
-    for (char& character : text)
-    {
-        character = static_cast<char>(
-            std::tolower(static_cast<unsigned char>(character))
-            );
-    }
+    constexpr bool LOG_GROUP_MATERIALS = false;
 
-    return text;
+    std::string ToLower(std::string text)
+    {
+        for (char& character : text)
+        {
+            character = static_cast<char>(
+                std::tolower(static_cast<unsigned char>(character))
+                );
+        }
+
+        return text;
+    }
 }
 
 ObjModel::ObjModel(const std::string& path)
@@ -147,9 +152,12 @@ void ObjModel::ProcessMesh(
     const GroupMaterial groupMaterial =
         GetMaterialFromGroupName(groupName);
 
-    std::cout << "Group: " << groupName
-        << " | Material: " << groupMaterial.materialType
-        << "\n";
+    if (LOG_GROUP_MATERIALS)
+    {
+        std::cout << "Group: " << groupName
+            << " | Material: " << groupMaterial.materialType
+            << "\n";
+    }
 
     for (unsigned int i = 0; i < assimpMesh->mNumVertices; ++i)
     {
@@ -207,7 +215,9 @@ void ObjModel::ProcessMesh(
         const aiFace& face = assimpMesh->mFaces[i];
 
         if (face.mNumIndices != 3)
+        {
             continue;
+        }
 
         const GLuint i0 = baseVertex + face.mIndices[0];
         const GLuint i1 = baseVertex + face.mIndices[1];
@@ -245,21 +255,18 @@ ObjModel::GroupMaterial ObjModel::GetMaterialFromGroupName(
 
     GroupMaterial material{};
 
-    // --------------------------------------------------
-    // Light / emissive panel
-    // --------------------------------------------------
     if (name.find("light") != std::string::npos &&
         name.find("sphere") == std::string::npos)
     {
         material.materialType = RAY_MATERIAL_LIGHT;
-        material.albedo = glm::vec3(0.85f, 0.92f, 1.00f);
+        material.albedo = glm::vec3(0.90f, 0.95f, 1.00f);
         material.emissionStrength = 5.5f;
         material.roughness = 0.0f;
         material.ior = 1.0f;
+
         return material;
     }
 
-    // Metal
     if (name.find("tallbox") != std::string::npos ||
         name.find("tall_box") != std::string::npos ||
         name.find("metalbox") != std::string::npos ||
@@ -267,38 +274,39 @@ ObjModel::GroupMaterial ObjModel::GetMaterialFromGroupName(
         name.find("box") != std::string::npos)
     {
         material.materialType = RAY_MATERIAL_METAL;
-        material.albedo = glm::vec3(0.46f, 0.48f, 0.50f);
-        material.roughness = 0.20f;
+
+        // Acero satinado / metal tipo balín.
+        material.albedo = glm::vec3(0.50f, 0.52f, 0.54f);
+        material.roughness = 0.16f;
+
         material.ior = 1.0f;
         material.emissionStrength = 0.0f;
+
         return material;
     }
 
-   
-    // Glass sphere
     if (name.find("glasssphere") != std::string::npos ||
         name.find("glass_sphere") != std::string::npos ||
         name.find("sphere") != std::string::npos ||
         name.find("glass") != std::string::npos)
     {
-        // Glass
         material.materialType = RAY_MATERIAL_GLASS;
-        material.albedo = glm::vec3(0.985f, 0.992f, 1.00f);
+
+        material.albedo = glm::vec3(0.96f, 0.985f, 1.00f);
         material.roughness = 0.0f;
-        material.ior = 1.40f;
+        material.ior = 1.42f;
         material.emissionStrength = 0.0f;
+
         return material;
     }
 
-    // --------------------------------------------------
-    // Cornell Box walls
-    // --------------------------------------------------
     if (name.find("leftwall") != std::string::npos ||
         name.find("left_wall") != std::string::npos)
     {
         material.materialType = RAY_MATERIAL_DIFFUSE;
         material.albedo = glm::vec3(0.65f, 0.05f, 0.04f);
         material.roughness = 1.0f;
+
         return material;
     }
 
@@ -308,6 +316,7 @@ ObjModel::GroupMaterial ObjModel::GetMaterialFromGroupName(
         material.materialType = RAY_MATERIAL_DIFFUSE;
         material.albedo = glm::vec3(0.08f, 0.45f, 0.10f);
         material.roughness = 1.0f;
+
         return material;
     }
 
@@ -319,12 +328,10 @@ ObjModel::GroupMaterial ObjModel::GetMaterialFromGroupName(
         material.materialType = RAY_MATERIAL_DIFFUSE;
         material.albedo = glm::vec3(0.78f, 0.76f, 0.70f);
         material.roughness = 1.0f;
+
         return material;
     }
 
-    // --------------------------------------------------
-    // Fallback
-    // --------------------------------------------------
     material.materialType = RAY_MATERIAL_DIFFUSE;
     material.albedo = glm::vec3(0.75f);
     material.roughness = 1.0f;
@@ -364,7 +371,9 @@ void ObjModel::Draw(
 )
 {
     if (!mesh)
+    {
         return;
+    }
 
     mesh->Draw(
         shader,
@@ -377,6 +386,7 @@ const std::vector<RayTriangle>& ObjModel::GetTriangles() const
 {
     return triangles;
 }
+
 const glm::mat4& ObjModel::GetNormalizationMatrix() const
 {
     return normalizationMatrix;

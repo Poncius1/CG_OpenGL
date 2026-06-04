@@ -421,29 +421,9 @@ vec3 ShadeDirect(Hit hit)
     color += ShadeLight(mainLight, hit);
     color += ShadeLight(fillLight, hit);
 
-    // Rebote ambiental falso, bajo y cálido.
     color += hit.albedo * vec3(0.012, 0.009, 0.006);
 
     return color;
-}
-
-vec3 SampleFirstHitColor(Ray ray)
-{
-    Hit hit = TraceScene(ray);
-
-    if (!hit.hit)
-    {
-        return vec3(0.0);
-    }
-
-    hit.normal = FaceNormalAgainstRay(hit.normal, ray);
-
-    if (hit.materialType == MATERIAL_LIGHT)
-    {
-        return hit.albedo * hit.emission;
-    }
-
-    return ShadeDirect(hit);
 }
 
 // ==================================================
@@ -496,6 +476,70 @@ vec3 ComputeSpecular(
 }
 
 // ==================================================
+// Reflection sampling
+// ==================================================
+
+vec3 SampleReflectionColor(Ray ray)
+{
+    Hit hit = TraceScene(ray);
+
+    if (!hit.hit)
+    {
+        return vec3(0.0);
+    }
+
+    hit.normal = FaceNormalAgainstRay(hit.normal, ray);
+
+    if (hit.materialType == MATERIAL_LIGHT)
+    {
+        return hit.albedo * hit.emission;
+    }
+
+    if (hit.materialType == MATERIAL_GLASS && glassShaderEnabled)
+    {
+        vec3 N = normalize(hit.normal);
+        vec3 V = normalize(-ray.direction);
+
+        float cosTheta = clamp(dot(N, V), 0.0, 1.0);
+
+        float fresnel = SchlickFresnel(cosTheta, hit.ior);
+        fresnel = clamp(fresnel * 2.0, 0.08, 0.90);
+
+        vec3 highlight = ComputeSpecular(
+            hit,
+            ray,
+            160.0,
+            90.0,
+            0.10,
+            0.035
+        );
+
+        vec3 direct = ShadeDirect(hit) * 0.08;
+        vec3 rim = vec3(0.72, 0.88, 1.0) * fresnel * 0.25;
+
+        return direct + rim + highlight;
+    }
+
+    if (hit.materialType == MATERIAL_METAL && metalShaderEnabled)
+    {
+        vec3 direct = ShadeDirect(hit) * 0.65;
+
+        vec3 specular = ComputeSpecular(
+            hit,
+            ray,
+            96.0,
+            48.0,
+            0.18,
+            0.04
+        );
+
+        return direct + specular;
+    }
+
+    return ShadeDirect(hit);
+}
+
+// ==================================================
 // Materials
 // ==================================================
 
@@ -504,30 +548,36 @@ vec3 TraceMetal(
     Hit hit
 )
 {
-    // Acero satinado: base difusa + brillo fuerte + reflejo leve.
-    vec3 base = ShadeDirect(hit) * 0.55;
+    vec3 N = normalize(hit.normal);
 
+    // Base gris acero. Más peso local para que no parezca vidrio/espejo.
+    vec3 base = ShadeDirect(hit) * 0.82;
+
+    // Highlight metálico concentrado.
     vec3 specular = ComputeSpecular(
         hit,
         ray,
-        96.0,
-        48.0,
-        0.20,
-        0.05
+        140.0,
+        72.0,
+        0.28,
+        0.06
     );
 
-    vec3 reflectedDirection = normalize(reflect(ray.direction, hit.normal));
+    vec3 reflectedDirection = normalize(reflect(ray.direction, N));
 
     Ray reflectionRay;
-    reflectionRay.origin = hit.position + hit.normal * EPSILON * 2.0;
+    reflectionRay.origin = hit.position + N * EPSILON * 2.0;
     reflectionRay.direction = reflectedDirection;
 
-    vec3 reflectionColor = SampleFirstHitColor(reflectionRay);
+    vec3 reflectionColor = SampleReflectionColor(reflectionRay);
 
-    // Reflejo muy reducido para evitar aspecto de espejo.
-    vec3 softReflection = reflectionColor * 0.08;
+    // Reflexión muy leve: suficiente para metal, no para espejo.
+    vec3 softReflection = reflectionColor * 0.045;
 
-    return base + specular + softReflection;
+    // Tinte acero neutro/frío.
+    vec3 steelTint = vec3(0.78, 0.81, 0.84);
+
+    return (base + specular + softReflection) * steelTint;
 }
 
 vec3 TraceGlass(
@@ -558,7 +608,7 @@ vec3 TraceGlass(
     reflectionRay.origin = hit.position + normal * EPSILON * 2.0;
     reflectionRay.direction = reflectedDirection;
 
-    vec3 reflectionColor = SampleFirstHitColor(reflectionRay);
+    vec3 reflectionColor = SampleReflectionColor(reflectionRay);
 
     vec3 highlight = ComputeSpecular(
         hit,
@@ -569,7 +619,6 @@ vec3 TraceGlass(
         0.035
     );
 
-    // Vidrio claro con borde Fresnel y reflejo superficial.
     vec3 surfaceGlass =
         reflectionColor * fresnel * 0.65 +
         highlight +
@@ -583,7 +632,6 @@ vec3 TraceGlass(
     ray.origin = hit.position + nextDirection * EPSILON * 2.0;
     ray.direction = nextDirection;
 
-    // Conserva energía para que la esfera no se vea gris/opaca.
     throughput *= mix(hit.albedo, vec3(1.0), 0.985);
 
     return surfaceGlass;
