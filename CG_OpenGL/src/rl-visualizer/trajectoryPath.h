@@ -34,7 +34,7 @@ struct TrajectorySegment
 
     float distance = 0.0f;
 
-    // x = quality contribution, y = negative cost for this segment.
+    // x = quality contribution, y = negative cost.
     glm::vec2 reward = glm::vec2(0.0f);
 };
 

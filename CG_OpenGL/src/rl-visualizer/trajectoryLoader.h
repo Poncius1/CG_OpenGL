@@ -4,7 +4,7 @@
 #include <vector>
 
 #include "json.hpp"
-#include "trajectoryPath.h"
+#include "rl-visualizer/trajectoryPath.h"
 
 class TrajectoryLoader
 {

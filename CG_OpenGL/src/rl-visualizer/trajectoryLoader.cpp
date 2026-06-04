@@ -1,34 +1,93 @@
-#include "trajectoryLoader.h"
+#include "rl-visualizer/trajectoryLoader.h"
 
 #include <fstream>
 #include <iostream>
 
 namespace
 {
+    bool IsNumber(const nlohmann::json& value)
+    {
+        return value.is_number_float() || value.is_number_integer() || value.is_number_unsigned();
+    }
+
+    float ReadFloatOrDefault(const nlohmann::json& object, const std::string& key, float fallback = 0.0f)
+    {
+        if (!object.contains(key))
+            return fallback;
+
+        const auto& value = object.at(key);
+        if (value.is_null() || !IsNumber(value))
+            return fallback;
+
+        return value.get<float>();
+    }
+
+    int ReadIntOrDefault(const nlohmann::json& object, const std::string& key, int fallback = 0)
+    {
+        if (!object.contains(key))
+            return fallback;
+
+        const auto& value = object.at(key);
+        if (value.is_null() || !IsNumber(value))
+            return fallback;
+
+        return value.get<int>();
+    }
+
+    bool ReadBoolOrDefault(const nlohmann::json& object, const std::string& key, bool fallback = false)
+    {
+        if (!object.contains(key))
+            return fallback;
+
+        const auto& value = object.at(key);
+        if (value.is_null() || !value.is_boolean())
+            return fallback;
+
+        return value.get<bool>();
+    }
+
+    std::string ReadStringOrDefault(
+        const nlohmann::json& object,
+        const std::string& key,
+        const std::string& fallback = "unknown"
+    )
+    {
+        if (!object.contains(key))
+            return fallback;
+
+        const auto& value = object.at(key);
+        if (value.is_null() || !value.is_string())
+            return fallback;
+
+        return value.get<std::string>();
+    }
+
+    float ReadArrayFloatOrDefault(const nlohmann::json& value, size_t index, float fallback = 0.0f)
+    {
+        if (!value.is_array() || value.size() <= index)
+            return fallback;
+
+        const auto& element = value.at(index);
+        if (element.is_null() || !IsNumber(element))
+            return fallback;
+
+        return element.get<float>();
+    }
+
     glm::vec3 ReadVec3(const nlohmann::json& value)
     {
-        if (!value.is_array() || value.size() < 3)
-        {
-            return glm::vec3(0.0f);
-        }
-
         return glm::vec3(
-            value.at(0).get<float>(),
-            value.at(1).get<float>(),
-            value.at(2).get<float>()
+            ReadArrayFloatOrDefault(value, 0, 0.0f),
+            ReadArrayFloatOrDefault(value, 1, 0.0f),
+            ReadArrayFloatOrDefault(value, 2, 0.0f)
         );
     }
 
     glm::vec2 ReadReward2(const nlohmann::json& value)
     {
-        if (!value.is_array() || value.size() < 2)
-        {
-            return glm::vec2(0.0f);
-        }
-
         return glm::vec2(
-            value.at(0).get<float>(),
-            value.at(1).get<float>()
+            ReadArrayFloatOrDefault(value, 0, 0.0f),
+            ReadArrayFloatOrDefault(value, 1, 0.0f)
         );
     }
 
@@ -129,45 +188,29 @@ void TrajectoryLoader::LoadPathArray(
 )
 {
     if (!root.contains(arrayName) || !root.at(arrayName).is_array())
-    {
         return;
-    }
 
     const auto& jsonPaths = root.at(arrayName);
     outputPaths.reserve(jsonPaths.size());
 
     for (const auto& jsonPath : jsonPaths)
     {
+        if (!jsonPath.is_object())
+            continue;
+
         TrajectoryPath path;
         path.method = method;
-        path.methodName = MethodName(method);
+        path.methodName = ReadStringOrDefault(jsonPath, "method", MethodName(method));
 
-        if (jsonPath.contains("id"))
-            path.id = jsonPath.at("id").get<int>();
+        path.id = ReadIntOrDefault(jsonPath, "id", 0);
+        path.visualClass = ReadStringOrDefault(jsonPath, "visual_class", "unknown");
+        path.terminalEventName = ReadStringOrDefault(jsonPath, "terminal_event", "unknown");
+        path.terminalEvent = ParseTerminalEvent(path.terminalEventName);
 
-        if (jsonPath.contains("method") && jsonPath.at("method").is_string())
-            path.methodName = jsonPath.at("method").get<std::string>();
-
-        if (jsonPath.contains("visual_class") && jsonPath.at("visual_class").is_string())
-            path.visualClass = jsonPath.at("visual_class").get<std::string>();
-
-        if (jsonPath.contains("terminal_event") && jsonPath.at("terminal_event").is_string())
-        {
-            path.terminalEventName = jsonPath.at("terminal_event").get<std::string>();
-            path.terminalEvent = ParseTerminalEvent(path.terminalEventName);
-        }
-
-        if (jsonPath.contains("hit_light"))
-            path.hitLight = jsonPath.at("hit_light").get<bool>();
-
-        if (jsonPath.contains("hit_obstacle"))
-            path.hitObstacle = jsonPath.at("hit_obstacle").get<bool>();
-
-        if (jsonPath.contains("out_of_bounds"))
-            path.outOfBounds = jsonPath.at("out_of_bounds").get<bool>();
-
-        if (jsonPath.contains("steps"))
-            path.steps = jsonPath.at("steps").get<int>();
+        path.hitLight = ReadBoolOrDefault(jsonPath, "hit_light", false);
+        path.hitObstacle = ReadBoolOrDefault(jsonPath, "hit_obstacle", false);
+        path.outOfBounds = ReadBoolOrDefault(jsonPath, "out_of_bounds", false);
+        path.steps = ReadIntOrDefault(jsonPath, "steps", 0);
 
         if (jsonPath.contains("reward") && jsonPath.at("reward").is_array())
         {
@@ -176,11 +219,8 @@ void TrajectoryLoader::LoadPathArray(
             path.totalCost = -path.reward.y;
         }
 
-        if (jsonPath.contains("total_quality"))
-            path.totalQuality = jsonPath.at("total_quality").get<float>();
-
-        if (jsonPath.contains("total_cost"))
-            path.totalCost = jsonPath.at("total_cost").get<float>();
+        path.totalQuality = ReadFloatOrDefault(jsonPath, "total_quality", path.totalQuality);
+        path.totalCost = ReadFloatOrDefault(jsonPath, "total_cost", path.totalCost);
 
         if (jsonPath.contains("points") && jsonPath.at("points").is_array())
         {
@@ -189,10 +229,10 @@ void TrajectoryLoader::LoadPathArray(
 
             for (const auto& point : points)
             {
-                if (point.is_array() && point.size() >= 3)
-                {
-                    path.points.push_back(ReadVec3(point));
-                }
+                if (!point.is_array() || point.size() < 3)
+                    continue;
+
+                path.points.push_back(ReadVec3(point));
             }
         }
 
@@ -203,25 +243,21 @@ void TrajectoryLoader::LoadPathArray(
 
             for (const auto& jsonSegment : segments)
             {
+                if (!jsonSegment.is_object())
+                    continue;
+
                 TrajectorySegment segment;
 
-                if (jsonSegment.contains("from"))
+                if (jsonSegment.contains("from") && jsonSegment.at("from").is_array())
                     segment.from = ReadVec3(jsonSegment.at("from"));
 
-                if (jsonSegment.contains("to"))
+                if (jsonSegment.contains("to") && jsonSegment.at("to").is_array())
                     segment.to = ReadVec3(jsonSegment.at("to"));
 
-                if (jsonSegment.contains("event") && jsonSegment.at("event").is_string())
-                    segment.event = jsonSegment.at("event").get<std::string>();
-
-                if (jsonSegment.contains("bounce"))
-                    segment.bounce = jsonSegment.at("bounce").get<int>();
-
-                if (jsonSegment.contains("action"))
-                    segment.action = jsonSegment.at("action").get<int>();
-
-                if (jsonSegment.contains("distance"))
-                    segment.distance = jsonSegment.at("distance").get<float>();
+                segment.event = ReadStringOrDefault(jsonSegment, "event", "unknown");
+                segment.bounce = ReadIntOrDefault(jsonSegment, "bounce", 0);
+                segment.action = ReadIntOrDefault(jsonSegment, "action", -1);
+                segment.distance = ReadFloatOrDefault(jsonSegment, "distance", 0.0f);
 
                 if (jsonSegment.contains("reward") && jsonSegment.at("reward").is_array())
                     segment.reward = ReadReward2(jsonSegment.at("reward"));
@@ -229,15 +265,11 @@ void TrajectoryLoader::LoadPathArray(
                 path.segments.push_back(segment);
             }
 
-            // New JSON can be visualized even if the legacy points array is absent.
             if (path.points.empty() && !path.segments.empty())
             {
                 path.points.push_back(path.segments.front().from);
-
                 for (const TrajectorySegment& segment : path.segments)
-                {
                     path.points.push_back(segment.to);
-                }
             }
         }
 
@@ -252,18 +284,28 @@ void TrajectoryLoader::LoadPathArray(
         if (path.terminalEvent == TrajectoryTerminalEvent::Unknown)
         {
             if (path.hitLight)
+            {
                 path.terminalEvent = TrajectoryTerminalEvent::HitLight;
+                path.terminalEventName = "hit_light";
+            }
             else if (path.hitObstacle)
+            {
                 path.terminalEvent = TrajectoryTerminalEvent::HitObstacle;
+                path.terminalEventName = "hit_obstacle";
+            }
             else if (path.outOfBounds)
+            {
                 path.terminalEvent = TrajectoryTerminalEvent::OutOfBounds;
+                path.terminalEventName = "out_of_bounds";
+            }
             else
+            {
                 path.terminalEvent = TrajectoryTerminalEvent::Failed;
+                path.terminalEventName = "failed";
+            }
         }
 
         if (path.points.size() >= 2 || !path.segments.empty())
-        {
             outputPaths.push_back(path);
-        }
     }
 }

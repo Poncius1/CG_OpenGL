@@ -5,10 +5,6 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
-
 #include <glm.hpp>
 
 #include "camera/Camera.h"
@@ -41,7 +37,7 @@ GLFWwindow* CreateWindow()
     GLFWwindow* window = glfwCreateWindow(
         WINDOW_WIDTH,
         WINDOW_HEIGHT,
-        "MORL 3D Visualizer",
+        "MORL Visualizer",
         nullptr,
         nullptr
     );
@@ -64,7 +60,6 @@ GLFWwindow* CreateWindow()
     }
 
     glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-
     return window;
 }
 
@@ -80,21 +75,27 @@ bool IsKeyPressedOnce(GLFWwindow* window, int key)
     return pressedOnce;
 }
 
-void PrintTrajectoryControls()
+bool IsAnyKeyPressedOnce(GLFWwindow* window, int keyA, int keyB)
 {
-    std::cout << "\n=== MORL Trajectory Visualizer Controls ===\n";
-    std::cout << "R : Toggle random paths\n";
-    std::cout << "B : Toggle light-biased paths\n";
-    std::cout << "P : Toggle Pareto Q-Learning paths\n";
-    std::cout << "F : Toggle full path / first segment only\n";
-    std::cout << "O : Cycle color mode: outcome / cost / quality / bounce / method\n";
-    std::cout << "T : Cycle filter: all / only successful / only failed\n";
-    std::cout << "J : Reload trajectory JSON\n";
-    std::cout << "+ : Increase visible paths\n";
-    std::cout << "- : Decrease visible paths\n";
-    std::cout << "H : Print this help\n";
-    std::cout << "==========================================\n";
-    std::cout << "Suggested presentation mode: P=ON, R/B optional, O=Outcome, T=Success only.\n\n";
+    return IsKeyPressedOnce(window, keyA) || IsKeyPressedOnce(window, keyB);
+}
+
+void PrintControls()
+{
+    std::cout << "\n=== MORL Visualizer ===\n";
+    std::cout << "Gold = reached light | Red = failed\n\n";
+
+    std::cout << "R : Toggle random\n";
+    std::cout << "B : Toggle light-biased\n";
+    std::cout << "P : Toggle Pareto Q-Learning\n";
+    std::cout << "T : Filter all / success only / failures only\n";
+    std::cout << "F : Full path / first segment only\n";
+    std::cout << "+ : Increase visible rays per method\n";
+    std::cout << "- : Decrease visible rays per method\n";
+    std::cout << "J : Reload JSON\n";
+    std::cout << "H : Help + current statistics\n";
+    std::cout << "ESC : Exit\n";
+    std::cout << "=======================\n\n";
 }
 
 bool LoadTrajectories(
@@ -114,7 +115,7 @@ bool LoadTrajectories(
 
     if (!loaded)
     {
-        std::cout << "WARNING: No se pudieron cargar trayectorias desde: "
+        std::cout << "WARNING: Could not load trajectories from: "
             << jsonPath << std::endl;
         return false;
     }
@@ -125,7 +126,8 @@ bool LoadTrajectories(
         &pqlPaths
     );
 
-    std::cout << "Trayectorias actualizadas en el renderer.\n";
+    std::cout << "\nLoaded trajectory JSON: " << jsonPath << "\n";
+    trajectoryRenderer.PrintVisibleStatistics();
 
     return true;
 }
@@ -141,7 +143,7 @@ int main()
 
     glEnable(GL_DEPTH_TEST);
 
-    // Important for viewing the Cornell Box interior.
+    // Needed to see the Cornell Box interior.
     glDisable(GL_CULL_FACE);
 
     Shader shaderProgram("default.vert", "default.frag");
@@ -174,7 +176,7 @@ int main()
         trajectoryRenderer
     );
 
-    PrintTrajectoryControls();
+    PrintControls();
 
     const float aspectRatio =
         static_cast<float>(WINDOW_WIDTH) / static_cast<float>(WINDOW_HEIGHT);
@@ -196,14 +198,14 @@ int main()
 
         if (IsKeyPressedOnce(window, GLFW_KEY_H))
         {
-            PrintTrajectoryControls();
+            PrintControls();
+            trajectoryRenderer.PrintVisibleStatistics();
         }
 
         if (IsKeyPressedOnce(window, GLFW_KEY_R))
         {
             trajectoryRenderer.ToggleRandom();
-
-            std::cout << "Random paths: "
+            std::cout << "Random: "
                 << (trajectoryRenderer.IsShowingRandom() ? "ON" : "OFF")
                 << std::endl;
         }
@@ -211,8 +213,7 @@ int main()
         if (IsKeyPressedOnce(window, GLFW_KEY_B))
         {
             trajectoryRenderer.ToggleLightBiased();
-
-            std::cout << "Light-biased paths: "
+            std::cout << "Light-biased: "
                 << (trajectoryRenderer.IsShowingLightBiased() ? "ON" : "OFF")
                 << std::endl;
         }
@@ -220,35 +221,27 @@ int main()
         if (IsKeyPressedOnce(window, GLFW_KEY_P))
         {
             trajectoryRenderer.TogglePql();
-
-            std::cout << "PQL paths: "
+            std::cout << "Pareto Q-Learning: "
                 << (trajectoryRenderer.IsShowingPql() ? "ON" : "OFF")
                 << std::endl;
+        }
+
+        if (IsKeyPressedOnce(window, GLFW_KEY_T))
+        {
+            trajectoryRenderer.CycleFilterMode();
+            trajectoryRenderer.PrintVisibleStatistics();
         }
 
         if (IsKeyPressedOnce(window, GLFW_KEY_F))
         {
             trajectoryRenderer.ToggleFirstSegmentMode();
-
-            std::cout << "First segment mode: "
-                << (trajectoryRenderer.IsFirstSegmentMode() ? "ON" : "OFF")
+            std::cout << "Draw mode: "
+                << (trajectoryRenderer.IsFirstSegmentMode() ? "first segment only" : "full path")
                 << std::endl;
-        }
-
-        if (IsKeyPressedOnce(window, GLFW_KEY_O))
-        {
-            trajectoryRenderer.NextColorMode();
-        }
-
-        if (IsKeyPressedOnce(window, GLFW_KEY_T))
-        {
-            trajectoryRenderer.NextFilterMode();
         }
 
         if (IsKeyPressedOnce(window, GLFW_KEY_J))
         {
-            std::cout << "Reloading trajectory JSON...\n";
-
             LoadTrajectories(
                 TRAJECTORY_JSON_PATH,
                 randomPaths,
@@ -258,18 +251,19 @@ int main()
             );
         }
 
-        if (IsKeyPressedOnce(window, GLFW_KEY_EQUAL))
+        if (IsAnyKeyPressedOnce(window, GLFW_KEY_EQUAL, GLFW_KEY_KP_ADD))
         {
             trajectoryRenderer.IncreaseVisiblePaths();
+            trajectoryRenderer.PrintVisibleStatistics();
         }
 
-        if (IsKeyPressedOnce(window, GLFW_KEY_MINUS))
+        if (IsAnyKeyPressedOnce(window, GLFW_KEY_MINUS, GLFW_KEY_KP_SUBTRACT))
         {
             trajectoryRenderer.DecreaseVisiblePaths();
+            trajectoryRenderer.PrintVisibleStatistics();
         }
 
         scene.Update(input);
-
         camera.Inputs(window, deltaTime);
 
         camera.updateMatrix(
@@ -282,9 +276,7 @@ int main()
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         scene.Render(shaderProgram, camera);
-
         trajectoryRenderer.Draw(trajectoryShader, camera);
-
         scene.RenderDebug(debugShader, camera, aspectRatio);
 
         glfwSwapBuffers(window);
